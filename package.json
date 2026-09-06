@@ -1,0 +1,28 @@
+{
+  "name": "fastlane",
+  "version": "1.0.0",
+  "description": "FastLane: Low-latency push-to-talk voice ordering assistant demonstrating streamed vs naive TTS pipeline with Rime",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "benchmark": "node scripts/benchmark.mjs",
+    "catalog:check": "node scripts/check_catalog.mjs"
+  },
+  "keywords": [
+    "rime",
+    "tts",
+    "streaming",
+    "gemini",
+    "drive-thru",
+    "voice-agent",
+    "latency"
+  ],
+  "author": "FastLane Team",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

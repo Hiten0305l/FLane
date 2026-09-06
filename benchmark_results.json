@@ -1,0 +1,268 @@
+{
+  "testDate": "2026-09-06T21:18:55.813Z",
+  "phrase": "I'll have a large pepperoni pizza and a coke",
+  "voice": {
+    "speaker": "hawa",
+    "modelId": "coda",
+    "languageCode": "eng",
+    "catalogUrl": "https://users.rime.ai/data/voices/all-v2.json",
+    "confirmedLive": true,
+    "timestamp": "2026-09-06T21:17:31.094Z"
+  },
+  "naive": {
+    "coldMs": 2608,
+    "warmAvgMs": 2701,
+    "warmRunCount": 14
+  },
+  "streamed": {
+    "coldMs": 2251,
+    "warmAvgMs": 1598,
+    "warmRunCount": 14
+  },
+  "improvement": {
+    "warmLatencyReductionPercent": 41,
+    "coldLatencyReductionPercent": 14
+  },
+  "runs": [
+    {
+      "runId": 1,
+      "pipeline": "Naive",
+      "cacheState": "Cold",
+      "latencyMs": 2608,
+      "totalTimeMs": 2609,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 2,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2695,
+      "totalTimeMs": 2695,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 3,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2744,
+      "totalTimeMs": 2744,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 4,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2565,
+      "totalTimeMs": 2565,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 5,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2762,
+      "totalTimeMs": 2763,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 6,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2655,
+      "totalTimeMs": 2656,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 7,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2589,
+      "totalTimeMs": 2590,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 8,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2700,
+      "totalTimeMs": 2700,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 9,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2726,
+      "totalTimeMs": 2726,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 10,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2605,
+      "totalTimeMs": 2605,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 11,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2783,
+      "totalTimeMs": 2783,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 12,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2894,
+      "totalTimeMs": 2895,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 13,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2679,
+      "totalTimeMs": 2679,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 14,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2679,
+      "totalTimeMs": 2679,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 15,
+      "pipeline": "Naive",
+      "cacheState": "Warm",
+      "latencyMs": 2744,
+      "totalTimeMs": 2744,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 16,
+      "pipeline": "Streamed",
+      "cacheState": "Cold",
+      "latencyMs": 2251,
+      "totalTimeMs": 2334,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 17,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1622,
+      "totalTimeMs": 2088,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 18,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1687,
+      "totalTimeMs": 2034,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 19,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1548,
+      "totalTimeMs": 2033,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 20,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1646,
+      "totalTimeMs": 2097,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 21,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1512,
+      "totalTimeMs": 1873,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 22,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1551,
+      "totalTimeMs": 2183,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 23,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1493,
+      "totalTimeMs": 2150,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 24,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1551,
+      "totalTimeMs": 2282,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 25,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1453,
+      "totalTimeMs": 2382,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 26,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1685,
+      "totalTimeMs": 1928,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 27,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1659,
+      "totalTimeMs": 2184,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 28,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1507,
+      "totalTimeMs": 2124,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 29,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1709,
+      "totalTimeMs": 2091,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    },
+    {
+      "runId": 30,
+      "pipeline": "Streamed",
+      "cacheState": "Warm",
+      "latencyMs": 1745,
+      "totalTimeMs": 2447,
+      "reply": "Haan ji, ek large pepperoni pizza aur ek Coke confirm ho gaya hai! Anything else lenge aap?"
+    }
+  ]
+}
