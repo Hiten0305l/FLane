@@ -1,5 +1,5 @@
 // services/pipelineService.js
-// Orchestrates the Naive vs Streamed audio pipelines with live sentence-level synthesis and fallback.
+// Orchestrates the Naive vs Streamed audio pipelines with live sentence-level synthesis, fallback, and structured order state.
 
 import { generateFullReply, streamReply } from './geminiService.js';
 import { synthesizeAudio } from './rimeService.js';
@@ -9,6 +9,8 @@ import { getVoiceInfo } from './voiceCatalog.js';
 export async function runPipeline({
   text,
   mode = 'streamed',
+  orderState = { items: [], confirmed: false },
+  isInterruption = false,
   forceFallback = false,
   clientT0 = null,
   onEvent
@@ -17,51 +19,62 @@ export async function runPipeline({
   const voiceInfo = await getVoiceInfo();
   let activeMode = mode;
 
-  // Let client know active mode initially
+  // Notify client of active mode & voice
   onEvent('mode', { mode: activeMode, voice: voiceInfo.speaker, model: voiceInfo.modelId });
 
   if (activeMode === 'streamed') {
-    return await executeStreamedPipeline({ text, voiceInfo, t0, forceFallback, onEvent });
+    return await executeStreamedPipeline({ text, orderState, isInterruption, voiceInfo, t0, forceFallback, onEvent });
   } else {
-    return await executeNaivePipeline({ text, voiceInfo, t0, onEvent, fallbackTriggered: false });
+    return await executeNaivePipeline({ text, orderState, isInterruption, voiceInfo, t0, onEvent, fallbackTriggered: false });
   }
 }
 
-async function executeStreamedPipeline({ text, voiceInfo, t0, forceFallback, onEvent }) {
+async function executeStreamedPipeline({ text, orderState, isInterruption, voiceInfo, t0, forceFallback, onEvent }) {
   let firstAudioSent = false;
   let t1 = null;
   let fullReplyText = '';
-
-  // We use a failure signal to trigger fallback from inside sentence callbacks
+  let updatedOrderState = orderState;
   let streamFailureError = null;
 
-  // Queue of per-sentence synthesis Promises (in order). We resolve them
-  // sequentially so that a failure in sentence 1 surfaces immediately.
-  const sentenceQueue = [];
+  const tGeminiStart = Date.now();
+  let geminiFirstTextMs = null;
+  let rimeFirstAudioMs = null;
+
+  let synthChain = Promise.resolve();
 
   const parser = new SentenceParser((sentence, idx) => {
     const isFirst = idx === 1;
     const forceThisFail = forceFallback && isFirst;
 
+    if (isFirst && geminiFirstTextMs === null) {
+      geminiFirstTextMs = Date.now() - tGeminiStart;
+      onEvent('stage', { stage: 'gemini', label: 'Gemini → first text', durationMs: geminiFirstTextMs });
+    }
+
     onEvent('sentence', { sentence, index: idx });
 
-    // Push a deferred synthesis task for this sentence
-    const synthTask = async () => {
+    // Begin synthesis immediately as sentence is parsed, chained sequentially so audio chunks arrive in order
+    synthChain = synthChain.then(async () => {
+      if (streamFailureError) return;
+
+      const tSynthStart = Date.now();
       const audioBuffer = await synthesizeAudio({
         text: sentence,
         speaker: voiceInfo.speaker,
         modelId: voiceInfo.modelId,
         lang: voiceInfo.languageCode === 'eng' ? 'en' : voiceInfo.languageCode,
-        timeoutMs: 5000,
+        timeoutMs: 10000,
         forceFail: forceThisFail
       });
 
       if (!firstAudioSent) {
         firstAudioSent = true;
         t1 = Date.now();
+        rimeFirstAudioMs = Date.now() - tSynthStart;
+        onEvent('stage', { stage: 'rime', label: 'Rime → first audio', durationMs: rimeFirstAudioMs });
       }
 
-      const latencyMs = t1 - t0;
+      const latencyMs = (t1 || Date.now()) - t0;
       onEvent('audio', {
         sentence,
         sentenceIndex: idx,
@@ -70,45 +83,52 @@ async function executeStreamedPipeline({ text, voiceInfo, t0, forceFallback, onE
         audioBase64: audioBuffer.toString('base64'),
         format: 'audio/mpeg'
       });
-    };
-
-    sentenceQueue.push(synthTask);
+    }).catch(err => {
+      console.warn(`[FastLane Pipeline] Sentence #${idx} synthesis error: ${err.message}`);
+      streamFailureError = err;
+    });
   });
 
-  // Stream LLM tokens into the parser
   try {
-    fullReplyText = await streamReply(text, (token) => {
-      onEvent('llm_token', { token });
-      parser.addChunk(token);
+    const result = await streamReply({
+      text,
+      orderState,
+      isInterruption,
+      onToken: (token) => {
+        onEvent('llm_token', { token });
+        parser.addChunk(token);
+      }
     });
+
+    fullReplyText = result.reply;
+    updatedOrderState = result.orderState;
   } catch (err) {
-    // LLM streaming failure — trigger full fallback
     streamFailureError = err;
   }
 
   if (!streamFailureError) {
     parser.flush();
-    onEvent('llm_complete', { text: fullReplyText });
-
-    // Execute sentence synthesis tasks sequentially so errors surface cleanly
-    for (const task of sentenceQueue) {
-      try {
-        await task();
-      } catch (err) {
-        streamFailureError = err;
-        break; // Stop processing remaining sentences and fall back
-      }
+    if (geminiFirstTextMs === null) {
+      geminiFirstTextMs = Date.now() - tGeminiStart;
+      onEvent('stage', { stage: 'gemini', label: 'Gemini → first text', durationMs: geminiFirstTextMs });
     }
+
+    // Wait for all sentence audio synthesis to complete
+    await synthChain;
+
+    // Emit structured order state event upon LLM completion
+    onEvent('order_state', updatedOrderState);
+    onEvent('llm_complete', { text: fullReplyText, orderState: updatedOrderState });
   }
 
   if (streamFailureError) {
-    console.warn(`[FastLane Pipeline] Streamed pipeline failed (${streamFailureError.message}). Triggering fallback to Standard Naive mode.`);
+    console.warn(`[FastLane Pipeline] Streamed pipeline failed (${streamFailureError.message}). Triggering fallback.`);
     onEvent('fallback', {
       reason: streamFailureError.message,
       mode: 'standard',
       message: 'Streaming call failed or timed out. Falling back to Standard Naive mode.'
     });
-    return await executeNaivePipeline({ text, voiceInfo, t0, onEvent, fallbackTriggered: true });
+    return await executeNaivePipeline({ text, orderState, isInterruption, voiceInfo, t0, onEvent, fallbackTriggered: true });
   }
 
   const totalTimeMs = Date.now() - t0;
@@ -120,7 +140,12 @@ async function executeStreamedPipeline({ text, voiceInfo, t0, forceFallback, onE
     t1: t1 || Date.now(),
     latencyMs: finalLatencyMs,
     totalTimeMs,
-    fullReply: fullReplyText
+    fullReply: fullReplyText,
+    orderState: updatedOrderState,
+    stageTimings: {
+      geminiMs: geminiFirstTextMs,
+      rimeMs: rimeFirstAudioMs
+    }
   });
 
   return {
@@ -129,21 +154,34 @@ async function executeStreamedPipeline({ text, voiceInfo, t0, forceFallback, onE
     t1: t1 || Date.now(),
     latencyMs: finalLatencyMs,
     totalTimeMs,
-    fullReply: fullReplyText
+    fullReply: fullReplyText,
+    orderState: updatedOrderState,
+    stageTimings: {
+      geminiMs: geminiFirstTextMs,
+      rimeMs: rimeFirstAudioMs
+    }
   };
 }
 
-async function executeNaivePipeline({ text, voiceInfo, t0, onEvent, fallbackTriggered = false }) {
+async function executeNaivePipeline({ text, orderState, isInterruption, voiceInfo, t0, onEvent, fallbackTriggered = false }) {
   const currentMode = fallbackTriggered ? 'standard' : 'naive';
   onEvent('mode', { mode: currentMode, voice: voiceInfo.speaker, model: voiceInfo.modelId });
 
-  // 1. Wait for complete LLM generation
   onEvent('status', { message: 'Generating full reply with Gemini...' });
-  const fullReply = await generateFullReply(text);
-  onEvent('llm_complete', { text: fullReply });
+  const tGeminiStart = Date.now();
+  const { reply: fullReply, orderState: updatedOrderState } = await generateFullReply({
+    text,
+    orderState,
+    isInterruption
+  });
+  const geminiFullMs = Date.now() - tGeminiStart;
+  onEvent('stage', { stage: 'gemini', label: 'Gemini (full reply)', durationMs: geminiFullMs });
+  
+  onEvent('order_state', updatedOrderState);
+  onEvent('llm_complete', { text: fullReply, orderState: updatedOrderState });
 
-  // 2. Send entire reply to Rime in a single synthesis call
   onEvent('status', { message: 'Synthesizing entire reply with Rime...' });
+  const tRimeStart = Date.now();
   const audioBuffer = await synthesizeAudio({
     text: fullReply,
     speaker: voiceInfo.speaker,
@@ -152,6 +190,8 @@ async function executeNaivePipeline({ text, voiceInfo, t0, onEvent, fallbackTrig
     timeoutMs: 10000,
     forceFail: false
   });
+  const rimeAudioMs = Date.now() - tRimeStart;
+  onEvent('stage', { stage: 'rime', label: 'Rime → first audio', durationMs: rimeAudioMs });
 
   const t1 = Date.now();
   const latencyMs = t1 - t0;
@@ -166,7 +206,31 @@ async function executeNaivePipeline({ text, voiceInfo, t0, onEvent, fallbackTrig
   });
 
   const totalTimeMs = Date.now() - t0;
-  onEvent('done', { mode: currentMode, t0, t1, latencyMs, totalTimeMs, fullReply });
+  onEvent('done', {
+    mode: currentMode,
+    t0,
+    t1,
+    latencyMs,
+    totalTimeMs,
+    fullReply,
+    orderState: updatedOrderState,
+    stageTimings: {
+      geminiMs: geminiFullMs,
+      rimeMs: rimeAudioMs
+    }
+  });
 
-  return { mode: currentMode, t0, t1, latencyMs, totalTimeMs, fullReply };
+  return {
+    mode: currentMode,
+    t0,
+    t1,
+    latencyMs,
+    totalTimeMs,
+    fullReply,
+    orderState: updatedOrderState,
+    stageTimings: {
+      geminiMs: geminiFullMs,
+      rimeMs: rimeAudioMs
+    }
+  };
 }

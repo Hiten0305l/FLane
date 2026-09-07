@@ -1,13 +1,15 @@
 // services/rimeService.js
 // Interfaces with Rime TTS API to synthesize high-quality speech with low latency.
 
+import { getVoiceInfo } from './voiceCatalog.js';
+
 const RIME_TTS_ENDPOINT = 'https://users.rime.ai/v1/rime-tts';
 
 export async function synthesizeAudio({
   text,
-  speaker = 'hawa',
-  modelId = 'coda',
-  lang = 'en',
+  speaker = null,
+  modelId = null,
+  lang = null,
   apiKey = process.env.RIME_API_KEY,
   timeoutMs = 5000,
   forceFail = false
@@ -22,6 +24,18 @@ export async function synthesizeAudio({
 
   if (!text || !text.trim()) {
     throw new Error('No text provided for synthesis');
+  }
+
+  // Dynamically resolve voice metadata from live catalog if not provided
+  let activeSpeaker = speaker;
+  let activeModel = modelId;
+  let activeLang = lang;
+
+  if (!activeSpeaker || !activeModel) {
+    const voiceInfo = await getVoiceInfo();
+    activeSpeaker = activeSpeaker || voiceInfo.speaker;
+    activeModel = activeModel || voiceInfo.modelId;
+    activeLang = activeLang || (voiceInfo.languageCode === 'eng' ? 'en' : voiceInfo.languageCode);
   }
 
   const controller = new AbortController();
@@ -39,9 +53,9 @@ export async function synthesizeAudio({
       },
       body: JSON.stringify({
         text: text.trim(),
-        modelId: modelId || 'coda',
-        speaker: speaker || 'hawa',
-        lang: lang || 'en',
+        modelId: activeModel,
+        speaker: activeSpeaker,
+        lang: activeLang || 'en',
         samplingRate: 24000
       }),
       signal: controller.signal

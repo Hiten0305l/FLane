@@ -1,7 +1,26 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Environment files and credentials
 .env
-dist
+.env.*
+!.env.example
+
+# Build and runtime artifacts
+dist/
+build/
+*.log
+
+# Scratch scripts and temporary test files
+scratch/
+
+# OS and IDE files
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Audio cache files
 *.webm
 *.mp3
 *.wav

@@ -36,7 +36,7 @@ app.get('/api/voice-info', async (req, res) => {
 
 // Real-time Pipeline Endpoint using Server-Sent Events (SSE)
 app.post('/api/pipeline', async (req, res) => {
-  const { text, mode = 'streamed', forceFallback = false, t0 = Date.now() } = req.body;
+  const { text, mode = 'streamed', orderState = { items: [], confirmed: false }, isInterruption = false, forceFallback = false, t0 = Date.now() } = req.body;
 
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'Text prompt is required' });
@@ -56,6 +56,8 @@ app.post('/api/pipeline', async (req, res) => {
     await runPipeline({
       text,
       mode,
+      orderState,
+      isInterruption,
       forceFallback,
       clientT0: t0,
       onEvent: (evt, data) => sendEvent(evt, data)
@@ -101,10 +103,11 @@ app.post('/api/benchmark-trial', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  const voiceInfo = await getVoiceInfo().catch(() => ({ speaker: 'astra', modelId: 'coda', languageCode: 'eng' }));
   console.log(`=======================================================`);
   console.log(`  🚀 FastLane Server running at http://localhost:${PORT}`);
-  console.log(`  🎙️  Rime Voice: hawa (Model: coda)`);
+  console.log(`  🎙️  Rime Voice: ${voiceInfo.speaker} (Model: ${voiceInfo.modelId}, Lang: ${voiceInfo.languageCode || 'eng'})`);
   console.log(`  ⚡ Fast Mode: Streamed sentence-level TTS pipeline`);
   console.log(`  🐢 Standard Mode: Naive full-reply TTS pipeline`);
   console.log(`=======================================================`);
