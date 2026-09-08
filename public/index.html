@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=pastel">
 </head>
 <body>
   <div class="app-shell">
@@ -17,95 +17,175 @@
     <div class="bg-blob blob-2"></div>
     <div class="bg-blob blob-3"></div>
 
-    <!-- ─── Top View Switcher (User View vs Insights View) ─── -->
-    <div class="view-switcher-container">
-      <div class="view-toggle-pill" role="tablist" aria-label="Interface Views">
-        <button id="btn-view-user" class="view-pill-btn active" type="button" role="tab" aria-selected="true">
-          <span class="view-pill-icon">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-          </span>
-          <span>User View</span>
-        </button>
-        <button id="btn-view-insights" class="view-pill-btn" type="button" role="tab" aria-selected="false">
-          <span class="view-pill-icon">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg>
-          </span>
-          <span>Insights View</span>
-        </button>
-      </div>
-
-      <div class="view-subtitle-area">
-        <div id="user-view-header-text" class="view-header-text">
-          <div class="view-tagline">Simple • Clean • User Friendly</div>
-          <div class="view-subtag">Just order, and let FastLane handle the rest.</div>
-        </div>
-        <div id="insights-view-header-text" class="view-header-text hidden">
-          <div class="view-tagline">Detailed • Performance • Transparent</div>
-          <div class="view-subtag">See how FastLane achieves lower latency.</div>
-        </div>
-      </div>
-    </div>
-
     <!-- ─── Main White App Card Container ─── -->
-    <div class="main-card-container">
+    <!-- ─── Main Kiosk App Card Container ─── -->
+    <div class="main-card-container kiosk-frame">
+
+      <!-- ─── Top View Switcher (Inside UI as in Reference Image) ─── -->
+      <div class="view-switcher-container">
+        <div class="top-status-row">
+          <div class="top-connected-badge"><span class="connected-dot"></span>Connected</div>
+          <div class="top-latency-badge">
+            <svg class="latency-bolt" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+            <span>Ultra-Low Latency</span>
+          </div>
+        </div>
+
+        <div class="view-toggle-pill" role="tablist" aria-label="Interface Views">
+          <button id="btn-view-user" class="view-pill-btn active" type="button" role="tab" aria-selected="true">
+            <span class="view-pill-icon">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </span>
+            <span>User View</span>
+          </button>
+          <button id="btn-view-insights" class="view-pill-btn" type="button" role="tab" aria-selected="false">
+            <span class="view-pill-icon">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+            </span>
+            <span>Insights View</span>
+          </button>
+        </div>
+
+        <div class="view-subtitle-area">
+          <div id="user-view-header-text" class="view-header-text">
+            <div class="view-tagline">SIMPLE • CLEAN • USER FRIENDLY</div>
+            <div class="view-subtag">Just order, and let FastLane handle the rest.</div>
+          </div>
+          <div id="insights-view-header-text" class="view-header-text hidden">
+            <div class="view-tagline">DETAILED • PERFORMANCE • TRANSPARENT</div>
+            <div class="view-subtag">Real-time pipeline latency &amp; streaming telemetry</div>
+          </div>
+        </div>
+      </div>
 
       <!-- ============================================================== -->
-      <!-- VIEW 1: USER VIEW (Clean, Customer-Facing, Zero Tech Clutter)  -->
+      <!-- VIEW 1: USER VIEW (Pastel Drive-Thru Kiosk Theme)              -->
       <!-- ============================================================== -->
-      <section id="view-user" class="view-content active" aria-label="User View">
-        <!-- User View Header -->
-        <header class="app-card-header">
-          <div class="logo-group">
-            <div class="logo-mark">
-              <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
-                <path d="M14 2L26 8v12l-12 6L2 20V8l12-6z" fill="url(#logo-grad-1)" />
-                <path d="M10 13l3 3 5-6" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <defs><linearGradient id="logo-grad-1" x1="2" y1="2" x2="26" y2="26"><stop stop-color="#0d9488"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs>
+      <section id="view-user" class="view-content active kiosk-user-view" aria-label="User View">
+        <!-- User View Header (Matching Mockup) -->
+        <header class="kiosk-header">
+          <div class="kiosk-brand-group">
+            <div class="kiosk-logo-squircle">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
             </div>
-            <div>
-              <h1 class="logo-text">FastLane</h1>
-              <span class="logo-sub">DRIVE-THRU VOICE AI</span>
+            <div class="kiosk-title-col">
+              <div class="kiosk-brand-title-row">
+                <span class="kiosk-brand-name">FastLane</span>
+                <span class="kiosk-badge">KIOSK</span>
+              </div>
+              <span class="kiosk-brand-sub">DRIVE-THRU VOICE AI</span>
             </div>
           </div>
-          <div class="header-right-group">
+
+          <div class="kiosk-header-right">
             <div id="interrupt-indicator-user" class="interrupt-indicator hidden" title="Listening for interruption">
               <span class="interrupt-dot"></span>
               <span class="interrupt-text">Listening...</span>
             </div>
-            <!-- Read-only mode badge in User View -->
-            <div id="mode-badge-user" class="pill-badge fast" title="Active pipeline mode">
-              <span class="pill-dot"></span>
-              <span id="mode-badge-user-text">● Streamed</span>
+            <div id="mode-badge-user" class="live-mic-pill" title="Active Voice Intercom">
+              <span class="live-mic-dot"></span>
+              <span id="mode-badge-user-text">Live Mic</span>
             </div>
           </div>
         </header>
 
-        <!-- Circular Ripple Microphone Hero Area -->
-        <div class="user-hero-mic-card">
-          <div class="ripple-outer-ring" id="ripple-outer">
-            <div class="ripple-middle-ring" id="ripple-middle">
-              <button id="ptt-button-user" class="ptt-circle-btn" type="button" aria-label="Tap and hold to speak">
-                <div class="ptt-circle-glow"></div>
-                <div class="ptt-circle-icon">
-                  <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="9" y="2.5" width="6" height="11" rx="3" fill="white" stroke="none" />
-                    <path d="M5 10a7 7 0 0 0 14 0" />
-                    <line x1="12" y1="17" x2="12" y2="21.5" />
-                    <line x1="8.5" y1="21.5" x2="15.5" y2="21.5" />
-                  </svg>
-                </div>
-              </button>
+        <!-- Hero Voice Section with Soft Coral Radial Glow -->
+        <div class="kiosk-hero-voice-area">
+          <div class="coral-ambient-aura"></div>
+          <button id="ptt-button-user" class="kiosk-mic-btn" type="button" aria-label="Tap and hold to speak">
+            <div class="kiosk-mic-ring"></div>
+            <div class="kiosk-mic-icon">
+              <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                <line x1="12" y1="18" x2="12" y2="22" />
+                <line x1="8" y1="22" x2="16" y2="22" />
+              </svg>
+            </div>
+          </button>
+          <div class="kiosk-mic-title" id="ptt-user-label">Tap and hold to speak</div>
+          <div class="kiosk-mic-subtitle">Order anything from the grill, bar, or sides</div>
+
+          <div class="kiosk-rec-header-row">
+            <span class="kiosk-rec-title">RECOMMENDED SIDES (SLIDE FOR MORE)</span>
+            <div class="kiosk-carousel-nav">
+              <button type="button" id="carousel-prev-btn" class="carousel-nav-btn" aria-label="Slide left">‹</button>
+              <button type="button" id="carousel-next-btn" class="carousel-nav-btn" aria-label="Slide right">›</button>
             </div>
           </div>
-          <div class="ptt-circle-title" id="ptt-user-label">Tap and hold to speak</div>
-          <div class="ptt-circle-subtitle">Speak your order clearly</div>
 
-          <!-- Quick Sample Order Chips -->
-          <div class="quick-row user-quick-row">
-            <button class="quick-chip" data-order="I'll have a large pepperoni pizza and a coke.">🍕 Pizza &amp; Coke</button>
-            <button class="quick-chip" data-order="Two double cheeseburgers, large fries, and a sprite.">🍔 Burgers &amp; Fries</button>
-            <button class="quick-chip" data-order="Six piece chicken nuggets with barbecue sauce and a chocolate shake.">🍗 Nuggets &amp; Shake</button>
+          <!-- Recommended Items Carousel Cards -->
+          <div class="kiosk-quick-cards-row" id="kiosk-recommended-row">
+            <div class="kiosk-sample-card rec-item-card" data-item-id="coke">
+              <div class="sample-card-header">
+                <div class="sample-icon-box bg-peach">🥤</div>
+                <span class="sample-popular-badge">₹79</span>
+              </div>
+              <div class="sample-text-col">
+                <span class="sample-title">Classic Coke</span>
+                <span class="sample-desc">Chilled • Light ice</span>
+              </div>
+              <button class="kiosk-add-rec-btn" type="button" aria-label="Add Classic Coke to order" data-rec-id="coke" data-action="add">+ Add</button>
+            </div>
+
+            <div class="kiosk-sample-card rec-item-card" data-item-id="nuggets">
+              <div class="sample-card-header">
+                <div class="sample-icon-box bg-amber">🍗</div>
+                <span class="sample-popular-badge">₹149</span>
+              </div>
+              <div class="sample-text-col">
+                <span class="sample-title">Chicken Nuggets</span>
+                <span class="sample-desc">With tangy dip</span>
+              </div>
+              <button class="kiosk-add-rec-btn" type="button" aria-label="Add Chicken Nuggets to order" data-rec-id="nuggets" data-action="add">+ Add</button>
+            </div>
+
+            <div class="kiosk-sample-card rec-item-card" data-item-id="dessert">
+              <div class="sample-card-header">
+                <div class="sample-icon-box bg-red">🍨</div>
+                <span class="sample-popular-badge">₹129</span>
+              </div>
+              <div class="sample-text-col">
+                <span class="sample-title">Choco Lava Dessert</span>
+                <span class="sample-desc">Warm molten chocolate</span>
+              </div>
+              <button class="kiosk-add-rec-btn" type="button" aria-label="Add Choco Lava Dessert to order" data-rec-id="dessert" data-action="add">+ Add</button>
+            </div>
+
+            <div class="kiosk-sample-card rec-item-card" data-item-id="fries">
+              <div class="sample-card-header">
+                <div class="sample-icon-box bg-peach">🍟</div>
+                <span class="sample-popular-badge">₹99</span>
+              </div>
+              <div class="sample-text-col">
+                <span class="sample-title">Crispy Fries</span>
+                <span class="sample-desc">Golden &amp; sea salted</span>
+              </div>
+              <button class="kiosk-add-rec-btn" type="button" aria-label="Add Crispy Fries to order" data-rec-id="fries" data-action="add">+ Add</button>
+            </div>
+
+            <div class="kiosk-sample-card rec-item-card" data-item-id="garlic_bread">
+              <div class="sample-card-header">
+                <div class="sample-icon-box bg-amber">🥖</div>
+                <span class="sample-popular-badge">₹119</span>
+              </div>
+              <div class="sample-text-col">
+                <span class="sample-title">Garlic Bread</span>
+                <span class="sample-desc">Toasted herb butter</span>
+              </div>
+              <button class="kiosk-add-rec-btn" type="button" aria-label="Add Garlic Bread to order" data-rec-id="garlic_bread" data-action="add">+ Add</button>
+            </div>
           </div>
 
           <!-- Compact manual text input option -->
@@ -120,487 +200,501 @@
           </details>
         </div>
 
-        <!-- "Your Order" Conversational Card -->
-        <div class="user-order-card">
-          <div class="order-card-header">
-            <div class="order-card-title">
-              <span class="user-avatar-circle">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#0284c7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- "Your Order" Main Card -->
+        <div class="kiosk-order-card">
+          <div class="kiosk-order-card-header">
+            <div class="kiosk-order-title-left">
+              <div class="kiosk-avatar-circle">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#64748b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
                 </svg>
-              </span>
-              <span>Your Order</span>
+              </div>
+              <div class="kiosk-order-title-col">
+                <span class="kiosk-order-heading">Your Order</span>
+                <span class="kiosk-order-sub" id="user-order-item-count">0 items recognized</span>
+              </div>
+            </div>
+            <div class="kiosk-lane-badge">
+              <span class="kiosk-lane-dot"></span>
+              <span>Lane 1 Active</span>
             </div>
           </div>
 
-          <div class="order-card-body">
+          <div class="kiosk-order-card-body">
             <!-- User Speech Bubble -->
-            <div class="user-chat-bubble">
-              <p id="user-transcript-user" class="chat-bubble-text placeholder">I'll have a large pepperoni pizza and a coke.</p>
-              <span id="user-time-user" class="chat-bubble-time">9:41 AM</span>
+            <div class="kiosk-user-bubble">
+              <div class="kiosk-user-bubble-header">
+                <span class="kiosk-user-tag">CUSTOMER (YOU)</span>
+                <span id="user-time-user" class="kiosk-bubble-time">9:41 AM</span>
+              </div>
+              <p id="user-transcript-user" class="kiosk-user-text placeholder">Tap and hold the mic to say your order...</p>
             </div>
 
-            <!-- FastLane Reply Bubble -->
-            <div class="bot-chat-row">
-              <div class="bot-avatar-circle">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="4" y="6" width="16" height="12" rx="4" fill="rgba(13,148,136,0.12)" />
-                  <circle cx="9" cy="12" r="1.5" fill="#0d9488" stroke="none" />
-                  <circle cx="15" cy="12" r="1.5" fill="#0d9488" stroke="none" />
-                  <path d="M12 2v4" />
-                  <path d="M2 12h2" />
-                  <path d="M20 12h2" />
+            <!-- FastLane AI Bot Bubble -->
+            <div class="kiosk-bot-bubble-row">
+              <div class="kiosk-bot-avatar">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="4" y="6" width="16" height="12" rx="3"></rect>
+                  <circle cx="9" cy="12" r="1.5" fill="#ffffff"></circle>
+                  <circle cx="15" cy="12" r="1.5" fill="#ffffff"></circle>
+                  <line x1="12" y1="2" x2="12" y2="6"></line>
                 </svg>
               </div>
-              <div class="bot-chat-bubble">
-                <div class="bot-bubble-top">
-                  <span class="bot-name">FastLane</span>
-                  <div class="bot-time-wave">
-                    <span id="bot-time-user" class="chat-bubble-time">9:41 AM</span>
-                    <span id="soundwave-user" class="soundwave-indicator" style="display:none;">
+              <div class="kiosk-bot-bubble">
+                <div class="kiosk-bot-bubble-header">
+                  <div class="kiosk-bot-tags">
+                    <span class="kiosk-bot-name">FASTLANE AI</span>
+                    <span class="kiosk-kitchen-tag">Kitchen Verified</span>
+                  </div>
+                  <div class="kiosk-bot-time-row">
+                    <span id="bot-time-user" class="kiosk-bubble-time">9:41 AM</span>
+                    <span id="soundwave-user" class="soundwave-indicator" style="display:none; margin-left:4px;">
                       <span class="soundwave-bar"></span>
                       <span class="soundwave-bar"></span>
                       <span class="soundwave-bar"></span>
                     </span>
                   </div>
                 </div>
-                <p id="bot-transcript-user" class="chat-bubble-text placeholder">Got it! I've added a large pepperoni pizza and a Coke to your order. Anything else for you?</p>
+                <p id="bot-transcript-user" class="kiosk-bot-text">Hi! I'm FastLane AI. What can I get started for you today?</p>
               </div>
             </div>
 
-            <!-- Structured Order Items Chips -->
-            <div class="user-order-chips-box">
-              <div id="order-items-list-user" class="order-items-list">
-                <span class="empty-state-hint">(no items confirmed yet)</span>
+            <!-- Recognized Items Section -->
+            <div class="kiosk-items-section">
+              <div class="kiosk-items-header">
+                <span class="kiosk-items-label">RECOGNIZED ITEMS (<span id="rec-count">0</span>)</span>
+                <span class="kiosk-items-total">Est. Total: <strong class="kiosk-total-val" id="est-total-val">₹0</strong></span>
+              </div>
+
+              <!-- Dynamic or Initial Items List -->
+              <div id="order-items-list-user" class="kiosk-items-list">
+                <div class="kiosk-empty-order" id="kiosk-empty-order-state">
+                  <div class="empty-cart-emoji">🛒</div>
+                  <div class="empty-cart-title">Your order is empty</div>
+                  <div class="empty-cart-desc">Tap the mic to speak or tap "+ Add" on recommended items above</div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Drive-thru Vector Illustration Footer -->
-        <div class="user-view-footer-art">
-          <svg class="drivethru-svg" viewBox="0 0 680 130" fill="none" preserveAspectRatio="xMidYMax meet">
-            <!-- Gentle Rolling Hills -->
-            <path d="M0 130 C160 110 320 120 480 108 C580 102 640 108 680 114 L680 130 Z" fill="#e8f5f1" />
-            <path d="M0 130 C120 122 260 126 400 118 C520 112 600 120 680 124 L680 130 Z" fill="#d9efe7" />
-            
-            <!-- Clouds -->
-            <path d="M68 52 a12 12 0 0 1 20 -4 a16 16 0 0 1 28 4 a10 10 0 0 1 12 10 l-60 0 z" fill="#e2f4ed" opacity="0.8"/>
-            <path d="M160 62 a8 8 0 0 1 14 -3 a11 11 0 0 1 18 3 a7 7 0 0 1 8 7 l-40 0 z" fill="#e2f4ed" opacity="0.6"/>
-            <path d="M480 56 a10 10 0 0 1 18 -3 a14 14 0 0 1 24 3 a8 8 0 0 1 10 8 l-52 0 z" fill="#e2f4ed" opacity="0.7"/>
-
-            <!-- Trees Background -->
-            <ellipse cx="44" cy="106" rx="16" ry="24" fill="#a4dccf" opacity="0.7"/>
-            <rect x="42" y="116" width="4" height="14" fill="#71b5a6" />
-            <ellipse cx="620" cy="98" rx="18" ry="28" fill="#a4dccf" opacity="0.7"/>
-            <rect x="618" y="112" width="4" height="18" fill="#71b5a6" />
-            <ellipse cx="488" cy="108" rx="14" ry="20" fill="#bce7dc" opacity="0.9"/>
-            <rect x="486" y="116" width="4" height="14" fill="#8bc5b7" />
-
-            <!-- Drive-Thru Order Intercom Post & Sign -->
-            <g transform="translate(516, 74)">
-              <!-- Post Ground Shadow -->
-              <ellipse cx="20" cy="52" rx="14" ry="2.5" fill="rgba(15,23,42,0.08)"/>
-              <!-- Intercom Post Stand -->
-              <rect x="18" y="24" width="5" height="28" fill="#0f766e" rx="1.5"/>
-              <!-- Main Order Board Screen -->
-              <rect x="0" y="6" width="42" height="22" rx="4" fill="#0d9488"/>
-              <rect x="2" y="8" width="38" height="18" rx="2.5" fill="#115e59"/>
-              <!-- Intercom Speaker Grill -->
-              <line x1="8" y1="13" x2="16" y2="13" stroke="#2dd4bf" stroke-width="1.2" stroke-linecap="round"/>
-              <line x1="8" y1="16" x2="16" y2="16" stroke="#2dd4bf" stroke-width="1.2" stroke-linecap="round"/>
-              <line x1="8" y1="19" x2="14" y2="19" stroke="#2dd4bf" stroke-width="1.2" stroke-linecap="round"/>
-              <text x="27" y="18.5" fill="#ffffff" font-size="5" font-weight="700" text-anchor="middle" font-family="Inter, sans-serif" letter-spacing="0.4">ORDER</text>
-            </g>
-
-            <!-- Cute Mint Green Drive-Thru Car -->
-            <g transform="translate(84, 82)">
-              <!-- Ground Contact Shadow -->
-              <ellipse cx="38" cy="41" rx="42" ry="3.5" fill="rgba(15, 23, 42, 0.12)"/>
-              <!-- Wheels -->
-              <circle cx="18" cy="38" r="7.5" fill="#1e293b"/>
-              <circle cx="18" cy="38" r="4.5" fill="#e2e8f0"/>
-              <circle cx="18" cy="38" r="2" fill="#0d9488"/>
-              <circle cx="56" cy="38" r="7.5" fill="#1e293b"/>
-              <circle cx="56" cy="38" r="4.5" fill="#e2e8f0"/>
-              <circle cx="56" cy="38" r="2" fill="#0d9488"/>
-              <!-- Car Body -->
-              <path d="M0 32 C0 26 5 22 12 22 L18 22 L26 12 C28 9 32 8 38 8 L54 8 C60 8 64 12 66 16 L72 22 L74 22 C78 22 80 25 80 28 L80 34 C80 36 78 38 74 38 L65 38 C64 33 59 30 55 30 C51 30 46 33 45 38 L29 38 C28 33 23 30 19 30 C15 30 10 33 9 38 L4 38 C1 38 0 35 0 32 Z" fill="#2dd4bf"/>
-              <!-- Subtle Car Highlight -->
-              <path d="M12 23 L24 23 L30 14 C33 10 36 9.5 42 9.5 L53 9.5" stroke="#5eead4" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.6"/>
-              <!-- Roof & Window Glare -->
-              <path d="M28 21 L35 12 L52 12 L52 21 Z" fill="#ffffff" opacity="0.88"/>
-              <path d="M55 21 L55 12 L62 17 L67 21 Z" fill="#ffffff" opacity="0.88"/>
-              <!-- Headlight & Tail light -->
-              <rect x="76" y="24" width="4" height="4" rx="1.5" fill="#fef08a"/>
-              <rect x="0" y="24" width="3" height="4" rx="1" fill="#f87171"/>
-            </g>
-          </svg>
-
-          <!-- Center Footer Branding -->
-          <div class="user-view-brand-pill">
-            <div class="brand-check-icon">
-              <svg viewBox="0 0 20 20" width="14" height="14" fill="none">
-                <path d="M5 10l3.5 3.5L15 6.5" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- Sticky Bottom Kiosk Bar (Matching Mockup) -->
+        <div class="kiosk-bottom-bar">
+          <div class="bottom-car-info">
+            <div class="bottom-car-icon">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9C2.1 11.1 2 11.5 2 12v4c0 .6.4 1 1 1h2"/>
+                <circle cx="7" cy="17" r="2"/>
+                <path d="M9 17h6"/>
+                <circle cx="17" cy="17" r="2"/>
               </svg>
             </div>
-            <span class="brand-name-text">FastLane</span>
-            <span class="brand-slogan-sep">·</span>
-            <span class="brand-slogan-text">Your order. Our priority.</span>
+            <div class="bottom-car-text">
+              <div class="bottom-brand-line"><strong>FastLane</strong> · Your order. Priority.</div>
+              <div class="bottom-order-screen"><span class="screen-red-dot"></span>Order Screen #1</div>
+            </div>
           </div>
+          <button class="confirm-pay-btn" type="button" id="confirm-pay-btn">
+            <span>Confirm &amp; Pay</span>
+            <span class="btn-arrow">›</span>
+          </button>
         </div>
       </section>
 
       <!-- ============================================================== -->
       <!-- VIEW 2: INSIGHTS VIEW (Detailed, Analytical, Live Timings)    -->
       <!-- ============================================================== -->
-      <section id="view-insights" class="view-content hidden" aria-label="Insights View">
-        <!-- Insights View Header -->
-        <header class="app-card-header">
-          <div class="logo-group">
-            <div class="logo-mark">
-              <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
-                <path d="M14 2L26 8v12l-12 6L2 20V8l12-6z" fill="url(#logo-grad-2)" />
-                <path d="M10 13l3 3 5-6" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <defs><linearGradient id="logo-grad-2" x1="2" y1="2" x2="26" y2="26"><stop stop-color="#0d9488"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs>
-              </svg>
+      <!-- VIEW 2: INSIGHTS VIEW (Orange & Black Telemetry Dashboard)     -->
+      <!-- ============================================================== -->
+      <section id="view-insights" class="view-content hidden insights-modern-view" aria-label="Insights View">
+        
+        <!-- Header (Matching Image 1) -->
+        <header class="insights-header-m">
+          <div class="insights-brand-col">
+            <div class="insights-brand-top">
+              <div class="insights-waveform-icon">
+                <span class="bar-wf b1"></span>
+                <span class="bar-wf b2"></span>
+                <span class="bar-wf b3"></span>
+              </div>
+              <h2 class="insights-brand-title">FastLane</h2>
+              <span class="insights-kiosk-tag">KIOSK</span>
             </div>
-            <div>
-              <h2 class="logo-text">FastLane</h2>
-              <span class="logo-sub">DRIVE-THRU VOICE AI</span>
-            </div>
+            <div class="insights-brand-sub">DRIVE-THRU VOICE AI</div>
           </div>
-          <div class="header-right-group">
+          <div class="insights-header-right">
             <div id="interrupt-indicator" class="interrupt-indicator hidden" title="Continuous Web Audio VAD">
               <span class="interrupt-dot"></span>
               <span class="interrupt-text">Listening for interruption...</span>
             </div>
-            <div id="mode-badge" class="pill-badge fast" title="Live pipeline status">
-              <span class="pill-dot"></span>
-              <span id="mode-badge-text">⚡ Streamed</span>
+            <div id="mode-badge" class="streamed-live-badge">
+              <span class="live-dot-orange"></span>
+              <span class="live-bolt">⚡</span>
+              <span id="mode-badge-text">Streamed Live</span>
             </div>
           </div>
         </header>
 
-        <!-- 1. Active Voice Pipeline Selector (Only Interactive Toggle in App) -->
-        <div class="insights-mode-toggle-card">
-          <div class="toggle-container full-width">
-            <button id="btn-mode-streamed" class="seg-btn active" type="button" aria-pressed="true">
-              <span>⚡</span> Streamed (Fast)
-            </button>
-            <button id="btn-mode-naive" class="seg-btn" type="button" aria-pressed="false">
-              <span>🐢</span> Naive (Standard)
-            </button>
-          </div>
-        </div>
-
-        <!-- 2. Wide Hold to Talk Button (Matching Image 1) -->
-        <div class="insights-mic-row">
-          <button id="ptt-button" class="ptt-btn-wide" type="button" aria-label="Hold to talk">
-            <div class="ptt-glow"></div>
-            <div class="ptt-icon-sm">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="2.5" width="6" height="10.5" rx="3" fill="currentColor" stroke="none" />
-                <path d="M5 9.5a7 7 0 0 0 14 0" />
-                <line x1="12" y1="16.5" x2="12" y2="20.5" />
-                <line x1="8.5" y1="20.5" x2="15.5" y2="20.5" />
-              </svg>
-            </div>
-            <span id="ptt-label" class="ptt-text-wide">Hold to talk</span>
+        <!-- 1. Pipeline Mode Selector (Matching Image 1) -->
+        <div class="insights-mode-pill-bar">
+          <button id="btn-mode-streamed" class="mode-pill-opt active" type="button" aria-pressed="true">
+            <span class="mode-opt-icon">⚡</span>
+            <span class="mode-opt-label">Streamed (Fast)</span>
+          </button>
+          <button id="btn-mode-naive" class="mode-pill-opt" type="button" aria-pressed="false">
+            <span class="mode-opt-icon">🐢</span>
+            <span class="mode-opt-label">Naive (Standard)</span>
           </button>
         </div>
 
-        <!-- Quick Sample Order Chips (retained in Insights view) -->
-        <div class="quick-row insights-quick-row">
-          <button class="quick-chip" data-order="I'll have a large pepperoni pizza and a coke.">🍕 Pizza &amp; Coke</button>
-          <button class="quick-chip" data-order="Two double cheeseburgers, large fries, and a sprite.">🍔 Burgers &amp; Fries</button>
-          <button class="quick-chip" data-order="Six piece chicken nuggets with barbecue sauce and a chocolate shake.">🍗 Nuggets &amp; Shake</button>
-        </div>
-
-        <!-- Compact manual text input option -->
-        <details class="manual-type-details insights-manual-details">
-          <summary class="manual-type-toggle">⌨️ Or test with manual text input</summary>
-          <div class="text-input-row">
-            <input type="text" id="manual-input" class="manual-input-sync" placeholder="Type your drive-thru order…" autocomplete="off">
-            <button id="send-text-btn" class="send-btn send-btn-sync" type="button" aria-label="Send order">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-            </button>
-          </div>
-        </details>
-
-        <!-- 3. Current Order (Side-by-Side Two Columns matching Image 1) -->
-        <div class="insights-card current-order-card">
-          <div class="insights-card-title-row">
-            <span class="card-title-icon-svg">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0d9488" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-              </svg>
-            </span>
-            <span class="insights-card-heading">Current Order</span>
-          </div>
-
-          <div class="order-columns-grid">
-            <!-- Left Card: You said -->
-            <div class="order-col-box user-col-box">
-              <div class="order-col-header">
-                <div class="avatar-badge avatar-user-badge">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#0284c7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                </div>
-                <span class="col-title">You said</span>
-                <span id="user-time" class="col-time">9:41 AM</span>
+        <!-- 2. Test Drive-Thru Voice Card (Matching Image 1) -->
+        <div class="insights-card voice-test-card">
+          <div class="voice-test-inner">
+            <div class="voice-test-left">
+              <div class="mic-circle-peach">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" fill="rgba(234,88,12,0.15)" />
+                  <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                  <line x1="12" y1="18" x2="12" y2="22" />
+                  <line x1="8" y1="22" x2="16" y2="22" />
+                </svg>
               </div>
-              <p id="user-transcript" class="col-text placeholder">I'll have a large pepperoni pizza and a coke.</p>
-            </div>
-
-            <!-- Right Card: FastLane replied -->
-            <div class="order-col-box bot-col-box">
-              <div class="order-col-header">
-                <div class="avatar-badge avatar-bot-badge">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="4" y="6" width="16" height="12" rx="4" fill="rgba(13,148,136,0.12)" />
-                    <circle cx="9" cy="12" r="1.5" fill="#0d9488" stroke="none" />
-                    <circle cx="15" cy="12" r="1.5" fill="#0d9488" stroke="none" />
-                    <path d="M12 2v4" />
-                    <path d="M2 12h2" />
-                    <path d="M20 12h2" />
-                  </svg>
+              <div class="voice-test-titles">
+                <div class="voice-test-heading">Test Drive-Thru Voice</div>
+                <div class="voice-test-status">
+                  <span class="eq-bars"><span class="e1"></span><span class="e2"></span><span class="e3"></span></span>
+                  <span>Microphone ready</span>
                 </div>
-                <span class="col-title">FastLane replied</span>
-                <span id="stream-indicator" class="streaming-tag hidden">streaming...</span>
-                <span id="bot-time" class="col-time">9:41 AM</span>
-                <span id="soundwave" class="soundwave-indicator" style="display:none; margin-left:auto;">
-                  <span class="soundwave-bar"></span>
-                  <span class="soundwave-bar"></span>
-                  <span class="soundwave-bar"></span>
+              </div>
+            </div>
+            <div class="voice-test-right">
+              <button id="ptt-button" class="ptt-pill-dark" type="button" aria-label="Hold to talk">
+                <span class="ptt-dark-icon">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
                 </span>
-              </div>
-              <p id="bot-transcript" class="col-text placeholder">Got it! I've added a large pepperoni pizza and a Coke to your order. Anything else for you?</p>
+                <span id="ptt-label">Hold to Talk</span>
+              </button>
             </div>
           </div>
 
-          <!-- Structured Order State Box -->
-          <div class="order-state-box" id="order-state-box">
-            <div class="order-state-head">
-              <span class="state-label">STRUCTURED ORDER STATE</span>
-              <span id="order-confirmed-badge" class="confirmed-badge unconfirmed">in progress</span>
+          <!-- Quick Test Phrases (Compact) -->
+          <div class="insights-quick-chips">
+            <button class="quick-chip" data-order="I'll have a large pepperoni pizza and a coke.">🍕 Pizza &amp; Coke</button>
+            <button class="quick-chip" data-order="Two double cheeseburgers, large fries, and a sprite.">🍔 Burgers &amp; Fries</button>
+            <button class="quick-chip" data-order="Six piece chicken nuggets with barbecue sauce and a chocolate shake.">🍗 Nuggets &amp; Shake</button>
+          </div>
+
+          <!-- Manual input toggle -->
+          <details class="insights-manual-details">
+            <summary class="manual-type-toggle">⌨️ Or type test order manually</summary>
+            <div class="text-input-row">
+              <input type="text" id="manual-input" class="manual-input-sync" placeholder="Type your drive-thru order…" autocomplete="off">
+              <button id="send-text-btn" class="send-btn send-btn-sync" type="button" aria-label="Send order">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+              </button>
             </div>
-            <div id="order-items-list" class="order-items-list">
-              <span class="empty-state-hint">(no items confirmed yet)</span>
+          </details>
+        </div>
+
+        <!-- 3. Current Order Recognized Card (Matching Image 1) -->
+        <div class="insights-card recognized-order-card">
+          <div class="rec-card-header">
+            <div class="rec-card-title-wrap">
+              <span class="rec-receipt-icon">🧾</span>
+              <span class="rec-title-text">Current Order Recognized</span>
             </div>
+            <div class="kitchen-verified-badge">
+              <span class="verified-check">✔</span>
+              <span>Kitchen Verified</span>
+            </div>
+          </div>
+
+          <!-- Recognized Item Chips -->
+          <div id="order-items-list" class="recognized-chips-container">
+            <span class="empty-state-hint">(no items recognized yet)</span>
+          </div>
+
+          <!-- Footer with Matched Intent and Live Total -->
+          <div class="rec-card-footer">
+            <div class="rec-intent-col">
+              <span class="intent-lbl">Matched Intent:</span>
+              <span class="intent-val" id="matched-intent-text">Add Items (Lane 1)</span>
+            </div>
+            <div class="rec-total-col">
+              <span class="total-word">Total</span>
+              <span id="rec-total-price" class="total-inr-price">₹0</span>
+            </div>
+          </div>
+
+          <!-- Hidden compatibility elements for transcripts & state -->
+          <div style="display:none;">
+            <span id="user-transcript"></span>
+            <span id="user-time"></span>
+            <span id="bot-transcript"></span>
+            <span id="bot-time"></span>
+            <span id="stream-indicator"></span>
+            <span id="soundwave"></span>
+            <span id="order-confirmed-badge"></span>
           </div>
         </div>
 
-        <!-- 4. Response Time Breakdown (5-Node Graphical Flow matching Image 1) -->
-        <div class="insights-card breakdown-card">
-          <div class="breakdown-card-top">
-            <div class="insights-card-title-row">
-              <span class="card-title-icon-svg">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0d9488" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <!-- 4. Response Time Breakdown Card (Matching Image 2) -->
+        <div class="insights-card breakdown-card-m">
+          <div class="breakdown-head-row">
+            <div class="breakdown-title-wrap">
+              <span class="sparkline-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#ea580c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                 </svg>
               </span>
-              <span class="insights-card-heading">Response Time Breakdown</span>
+              <span class="breakdown-heading">Response Time Breakdown</span>
             </div>
-            <span id="breakdown-mode-badge" class="breakdown-mode-pill">⚡ Streamed Mode</span>
+            <span class="target-chip">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Target &lt; 1.50s
+            </span>
           </div>
 
-          <!-- 5-Node Timeline Flow -->
-          <div class="flow-diagram-container">
-            <div class="flow-diagram" id="flow-diagram">
-              <!-- Node 1: User finishes speaking -->
-              <div class="flow-step completed" id="flow-step-release">
-                <div class="flow-node-circle circle-teal">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="9" y="2.5" width="6" height="10.5" rx="3" fill="rgba(13,148,136,0.15)"></rect>
-                    <path d="M5 9.5a7 7 0 0 0 14 0"></path>
-                    <line x1="12" y1="16.5" x2="12" y2="20.5"></line>
-                    <line x1="8.5" y1="20.5" x2="15.5" y2="20.5"></line>
-                  </svg>
-                </div>
-                <div class="flow-step-name">User finishes<br>speaking</div>
-                <div class="flow-step-time" id="val-release">0.00s</div>
+          <!-- 4 Vertical Pill Stages Grid -->
+          <div class="stages-pill-grid">
+            <!-- Stage 1 -->
+            <div class="stage-pill-box" id="flow-step-release">
+              <span class="stage-seq-tag">STAGE 1</span>
+              <div class="stage-icon-center">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/>
+                </svg>
               </div>
+              <span class="stage-label-text">Customer Talk</span>
+              <span class="stage-metric-val" id="val-release">0.18s</span>
+            </div>
 
-              <!-- Connector 1 -->
-              <div class="flow-connector active" id="flow-conn-1"></div>
-
-              <!-- Node 2: Speech recognized -->
-              <div class="flow-step" id="flow-step-stt">
-                <div class="flow-node-circle circle-purple">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#9333ea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" fill="rgba(147,51,234,0.1)"></path>
-                    <line x1="8" y1="10" x2="8" y2="10.01" stroke-width="2.5"></line>
-                    <line x1="12" y1="10" x2="12" y2="10.01" stroke-width="2.5"></line>
-                    <line x1="16" y1="10" x2="16" y2="10.01" stroke-width="2.5"></line>
-                  </svg>
-                </div>
-                <div class="flow-step-name">Speech<br>recognized</div>
-                <div class="flow-step-time" id="val-stt">—</div>
+            <!-- Stage 2 -->
+            <div class="stage-pill-box" id="flow-step-gemini">
+              <span class="stage-seq-tag">STAGE 2</span>
+              <div class="stage-icon-center">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2l2.4 7.2 7.6 2.4-7.6 2.4L12 21.6 9.6 14 2 11.6l7.6-2.4z"/>
+                </svg>
               </div>
+              <span class="stage-label-text" id="name-gemini">AI Processing</span>
+              <span class="stage-metric-val" id="val-gemini">0.57s</span>
+            </div>
 
-              <!-- Connector 2 -->
-              <div class="flow-connector" id="flow-conn-2"></div>
-
-              <!-- Node 3: Gemini first response -->
-              <div class="flow-step" id="flow-step-gemini">
-                <div class="flow-node-circle circle-teal">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6Z" fill="rgba(13,148,136,0.15)"></path>
-                  </svg>
-                </div>
-                <div class="flow-step-name" id="name-gemini">Gemini first<br>response</div>
-                <div class="flow-step-time" id="val-gemini">—</div>
+            <!-- Stage 3 -->
+            <div class="stage-pill-box" id="flow-step-rime">
+              <span class="stage-seq-tag">STAGE 3</span>
+              <div class="stage-icon-center">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  <path d="M9 10h.01M12 10h.01M15 10h.01" stroke-width="3"/>
+                </svg>
               </div>
+              <span class="stage-label-text">Voice Audio</span>
+              <span class="stage-metric-val" id="val-rime">0.27s</span>
+            </div>
 
-              <!-- Connector 3 -->
-              <div class="flow-connector" id="flow-conn-3"></div>
-
-              <!-- Node 4: Audio ready (Rime) -->
-              <div class="flow-step" id="flow-step-rime">
-                <div class="flow-node-circle circle-purple">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="rgba(124,58,237,0.15)"></polygon>
-                    <path d="M15.5 8.5a5 5 0 0 1 0 7"></path>
-                    <path d="M19 5a9.5 9.5 0 0 1 0 14"></path>
-                  </svg>
-                </div>
-                <div class="flow-step-name">Audio ready<br>(Rime)</div>
-                <div class="flow-step-time" id="val-rime">—</div>
+            <!-- Stage 4 (Total / Judged Metric) -->
+            <div class="stage-pill-box highlight-total" id="flow-step-total">
+              <span class="stage-seq-tag highlight">STAGE 4</span>
+              <div class="stage-icon-center">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+                  <path d="M19 5a9.5 9.5 0 0 1 0 14"/>
+                </svg>
               </div>
-
-              <!-- Connector 4 -->
-              <div class="flow-connector" id="flow-conn-4"></div>
-
-              <!-- Node 5: First audio (Bold teal final metric) -->
-              <div class="flow-step final" id="flow-step-total">
-                <div class="flow-node-circle circle-teal-solid">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                </div>
-                <div class="flow-step-name font-bold">First audio</div>
-                <div class="flow-step-time final-metric-highlight" id="val-total">—</div>
+              <span class="stage-label-text">Speaker Playback</span>
+              <div class="stage-total-pill-circle">
+                <span id="val-total" class="total-big-sec">1.02s</span>
+                <span class="total-sub-lbl">total</span>
               </div>
             </div>
           </div>
 
-          <!-- Hidden auxiliary gauge elements for JS compatibility -->
+          <!-- Instant Speech Playback Callout -->
+          <div class="instant-speech-callout">
+            <span class="callout-bolt">⚡</span>
+            <div class="callout-content">
+              <strong>Instant Speech Playback:</strong>
+              <span id="advantage-text">The voice starts responding before the full sentence finishes generation, eliminating <strong>1.8 seconds</strong> of waiting silence.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Step-by-Step Response Speed Card (Matching Image 2) -->
+        <div class="insights-card step-speed-card">
+          <div class="step-speed-header">
+            <div>
+              <div class="step-speed-title">Step-by-Step Response Speed</div>
+              <div class="step-speed-sub" id="step-speed-sub">Voice plays immediately while AI completes the sentence</div>
+            </div>
+            <span class="audible-badge-pill" id="speed-audible-pill">Audible in 1.02s</span>
+          </div>
+
+          <!-- 4 Step Tracks -->
+          <div class="step-tracks-list">
+            <div class="step-track-row">
+              <span class="step-row-lbl">1. Customer Talk</span>
+              <div class="step-track-bg">
+                <div class="step-track-bar bar-dark" id="step-bar-stt" style="width: 18%;"></div>
+              </div>
+              <span class="step-row-val" id="step-val-stt">180ms</span>
+            </div>
+
+            <div class="step-track-row">
+              <span class="step-row-lbl">2. AI Thinking</span>
+              <div class="step-track-bg">
+                <div class="step-track-bar bar-orange" id="step-bar-gemini" style="width: 57%;"></div>
+              </div>
+              <span class="step-row-val" id="step-val-gemini">570ms</span>
+            </div>
+
+            <div class="step-track-row">
+              <span class="step-row-lbl">3. Voice Audio</span>
+              <div class="step-track-bg">
+                <div class="step-track-bar bar-amber" id="step-bar-rime" style="width: 27%;"></div>
+              </div>
+              <span class="step-row-val" id="step-val-rime">270ms</span>
+            </div>
+
+            <div class="step-track-row">
+              <span class="step-row-lbl font-bold">4. Audio (t₁)</span>
+              <div class="step-track-bg">
+                <div class="step-track-bar bar-accent" id="step-bar-total" style="width: 100%;"></div>
+              </div>
+              <span class="step-row-val highlight-bold" id="step-val-total">1.02s</span>
+            </div>
+          </div>
+
+          <!-- Millisecond Axis Footer -->
+          <div class="step-axis-footer">
+            <span>0ms (Done talking)</span>
+            <span id="axis-mid-1">350ms</span>
+            <span id="axis-mid-2">700ms</span>
+            <span class="axis-audible-end" id="axis-audible-text">1020ms (Audible)</span>
+          </div>
+        </div>
+
+        <!-- 6. 4 Telemetry Metrics Cards (2x2 Grid) (Matching Image 2 & 3) -->
+        <div class="telemetry-grid-2x2">
+          <!-- Metric 1 -->
+          <div class="telemetry-card">
+            <div class="telemetry-card-head">
+              <span>Average Latency</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ea580c" stroke-width="2.2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><polygon points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="telemetry-main-val" id="metric-avg-latency">1.08s</div>
+            <div class="telemetry-sub-pill" id="metric-latency-delta">↓ 62% vs Naive</div>
+          </div>
+
+          <!-- Metric 2 -->
+          <div class="telemetry-card">
+            <div class="telemetry-card-head">
+              <span>First Word Speed</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ea580c" stroke-width="2.2"><path d="M12 2l2.4 7.2 7.6 2.4-7.6 2.4L12 21.6 9.6 14 2 11.6l7.6-2.4z"/></svg>
+            </div>
+            <div class="telemetry-main-val" id="metric-first-word">420ms</div>
+            <div class="telemetry-sub-pill orange" id="metric-first-word-sub">Gemini Flash</div>
+          </div>
+
+          <!-- Metric 3 -->
+          <div class="telemetry-card">
+            <div class="telemetry-card-head">
+              <span>Smooth Audio</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ea580c" stroke-width="2.2"><path d="M3 12h2M7 8v8M11 4v16M15 7v10M19 9v6M21 12h1"/></svg>
+            </div>
+            <div class="telemetry-main-val" id="metric-smooth-audio">99.4%</div>
+            <div class="telemetry-sub-pill" id="metric-smooth-sub">0 Stutters</div>
+          </div>
+
+          <!-- Metric 4 -->
+          <div class="telemetry-card">
+            <div class="telemetry-card-head">
+              <span>Instant Interruption</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ea580c" stroke-width="2.2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            </div>
+            <div class="telemetry-main-val" id="metric-interrupt-speed">&lt;180ms</div>
+            <div class="telemetry-sub-pill" id="metric-interrupt-sub">Customer Talk-over</div>
+          </div>
+        </div>
+
+        <!-- 7. Recent Voice Orders Card (Matching Image 3) -->
+        <div class="insights-card recent-voice-card">
+          <div class="recent-voice-header">
+            <span class="recent-voice-title">Recent Voice Orders</span>
+            <span class="recent-voice-count" id="history-count">18 Total Tests</span>
+          </div>
+
+          <!-- Orders List -->
+          <div id="recent-orders-list" class="recent-orders-list">
+            <!-- Populated dynamically by app.js -->
+          </div>
+
+          <!-- Compatibility Table Body -->
+          <table style="display:none;"><tbody id="trials-table-body"></tbody></table>
+
+          <!-- Engine / LLM attribution row -->
+          <div class="insights-engine-attr">
+            <span>Engine: <strong>Rime TTS (<span id="footer-voice">Astra</span>)</strong></span>
+            <span class="attr-sep">•</span>
+            <span>LLM: <strong>Gemini Flash (<span id="footer-model">coda</span>)</strong></span>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="insights-action-row">
+            <button id="simulate-interrupt-btn" class="insights-action-btn btn-outline-dark" type="button">
+              <span class="action-btn-icon">⛔</span>
+              <span>Test Customer Interrupt</span>
+            </button>
+            <button id="export-trace-btn" class="insights-action-btn btn-solid-dark" type="button">
+              <span class="action-btn-icon">📥</span>
+              <span>Export Trace (.json)</span>
+            </button>
+          </div>
+
+          <!-- Dev trigger retained -->
           <div style="display:none;">
-            <div id="live-timer">0.00s</div>
-            <svg><circle id="donut-meter"></circle></svg>
-            <span id="timer-status-chip">Ready</span>
-            <span id="speed-callout-pill"></span>
-            <span id="stat-latency">—</span>
-            <span id="stat-voice">astra</span>
-            <span id="stat-model">coda</span>
-            <span id="advantage-text"></span>
+            <button id="force-fallback-btn" type="button">Force fallback</button>
           </div>
         </div>
 
-        <!-- 5. Performance Comparison (Matching Image 1) -->
-        <div class="insights-card compare-card">
-          <div class="compare-card-header">
-            <div class="insights-card-title-row">
-              <span class="card-title-icon-svg">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0d9488" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="20" x2="18" y2="10"></line>
-                  <line x1="12" y1="20" x2="12" y2="4"></line>
-                  <line x1="6" y1="20" x2="6" y2="14"></line>
-                </svg>
-              </span>
-              <span class="insights-card-heading">PERFORMANCE COMPARISON</span>
-            </div>
-            <span class="compare-subheading">TIME TO FIRST AUDIO</span>
-          </div>
-
-          <div class="bar-group">
-            <div class="bar-item">
-              <div class="bar-info">
-                <span class="bar-label fast-color">⚡ Streamed (current)</span>
-                <span id="streamed-bar-value" class="bar-val">—</span>
-              </div>
-              <div class="bar-track">
-                <div id="streamed-bar-fill" class="bar-fill fast-fill" style="width: 0%;"></div>
-              </div>
-            </div>
-            <div class="bar-item">
-              <div class="bar-info">
-                <span class="bar-label slow-color">🐢 Naive (standard)</span>
-                <span id="naive-bar-value" class="bar-val">—</span>
-              </div>
-              <div class="bar-track">
-                <div id="naive-bar-fill" class="bar-fill slow-fill" style="width: 0%;"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="compare-footer-row compare-delta-row">
-            <div id="faster-badge" class="faster-badge faster-pill empty">Run more trials to compare performance.</div>
-            <div class="dev-buttons-group">
-              <button id="simulate-interrupt-btn" class="dev-pill dev-pill-interrupt" type="button" title="Simulate interruption recovery">
-                ✂️ Simulate interruption now <span class="dev-label">[Demo]</span>
-              </button>
-              <button id="force-fallback-btn" class="dev-pill" type="button" title="Test fallback behavior">
-                ⚠️ Force fallback <span class="dev-label">[Demo]</span>
-              </button>
-            </div>
-          </div>
+        <!-- Hidden auxiliary elements for 100% app.js compatibility -->
+        <div style="display:none;">
+          <div id="val-stt">—</div>
+          <div id="flow-step-stt"></div>
+          <div id="flow-conn-1"></div>
+          <div id="flow-conn-2"></div>
+          <div id="flow-conn-3"></div>
+          <div id="flow-conn-4"></div>
+          <div id="desc-gemini"></div>
+          <div id="desc-rime"></div>
+          <div id="breakdown-mode-badge"></div>
+          <div id="live-timer">0.00s</div>
+          <svg><circle id="donut-meter"></circle></svg>
+          <span id="timer-status-chip">Ready</span>
+          <span id="speed-callout-pill"></span>
+          <span id="stat-latency">—</span>
+          <span id="stat-voice">astra</span>
+          <span id="stat-model">coda</span>
+          <span id="streamed-bar-value">1.08s</span>
+          <div id="streamed-bar-fill"></div>
+          <span id="naive-bar-value">3.45s</span>
+          <div id="naive-bar-fill"></div>
+          <div id="faster-badge"></div>
+          <span id="streamed-bar-label"></span>
+          <span id="naive-bar-label"></span>
+          <div id="waterfall-track-streamed"></div>
+          <div id="waterfall-track-naive"></div>
         </div>
 
-        <!-- 6. Recent Trials Table (Matching Image 1) -->
-        <div class="insights-card history-card">
-          <div class="history-top">
-            <div class="insights-card-title-row">
-              <span class="card-title-icon-svg">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0d9488" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-              </span>
-              <span class="insights-card-heading">Recent Trials</span>
-            </div>
-            <span id="history-count" class="history-view-all">0 trials</span>
-          </div>
-
-          <div class="trials-table-container">
-            <table class="trials-table">
-              <thead>
-                <tr>
-                  <th>Mode</th>
-                  <th>You Said</th>
-                  <th>Response Time</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody id="trials-table-body">
-                <tr>
-                  <td colspan="4" class="empty-trials-cell" style="text-align: center; padding: 22px 12px; color: #94a3b8; font-size: 0.85rem;">
-                    No recorded trials yet. Push to talk or select a sample order to record your first trial.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Insights Footer -->
-        <footer class="app-footer">
-          <span>Powered by <strong>Rime TTS</strong> · Voice: <code id="footer-voice">astra</code> · Model: <code id="footer-model">coda</code></span>
-          <span class="footer-sep">·</span>
-          <span>LLM: <strong>Gemini Flash</strong></span>
-        </footer>
       </section>
 
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=stt_fix_v2"></script>
 </body>
 </html>

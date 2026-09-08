@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getVoiceInfo } from './services/voiceCatalog.js';
 import { runPipeline } from './services/pipelineService.js';
+import { synthesizeAudio } from './services/rimeService.js';
 
 dotenv.config();
 
@@ -24,12 +25,50 @@ getVoiceInfo().catch(err => {
   console.error('[FastLane] Startup voice catalog fetch warning:', err.message);
 });
 
+import { MENU_CATALOG, DEFAULT_RECOMMENDATIONS } from './services/menuCatalog.js';
+
 // Voice metadata endpoint
 app.get('/api/voice-info', async (req, res) => {
   try {
     const info = await getVoiceInfo();
     res.json(info);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Centralized Menu & Recommendations endpoint (INR prices)
+app.get('/api/menu', (req, res) => {
+  res.json({
+    currency: 'INR',
+    symbol: '₹',
+    menu: MENU_CATALOG,
+    recommendations: DEFAULT_RECOMMENDATIONS
+  });
+});
+
+// Standalone TTS endpoint for direct spoken prompts/notifications using Rime
+app.post('/api/tts', async (req, res) => {
+  const { text } = req.body;
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Text prompt is required' });
+  }
+
+  try {
+    const voiceInfo = await getVoiceInfo();
+    const audioBuffer = await synthesizeAudio({
+      text: text.trim(),
+      speaker: voiceInfo.speaker,
+      modelId: voiceInfo.modelId,
+      lang: voiceInfo.languageCode === 'eng' ? 'en' : voiceInfo.languageCode
+    });
+
+    res.json({
+      audioBase64: audioBuffer.toString('base64'),
+      format: 'audio/mpeg'
+    });
+  } catch (err) {
+    console.error('[FastLane TTS Error]', err.message);
     res.status(500).json({ error: err.message });
   }
 });

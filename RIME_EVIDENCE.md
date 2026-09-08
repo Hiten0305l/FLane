@@ -1,30 +1,45 @@
 # Rime TTS Latency Evidence & Benchmark Protocol: FastLane
 
-## 1. Hard Voice Claim
-Pipelining sentence-level speech synthesis with **Rime TTS** concurrently with LLM token generation reduces the perceived conversational response latency (**Time to First Audio**) compared to a standard Naive pipeline that waits for the entire LLM response to complete before dispatching text to speech synthesis.
+## The Hard Voice Claim
+Pipelining sentence-level speech synthesis with **Rime TTS** concurrently with LLM token generation reduces perceived conversational response time (**Time to First Audio**) compared to a naive pipeline that waits for the full LLM response to complete before starting synthesis.
 
-## 2. Voice Engineering Problem
-In conversational voice systems, conversational realism is dictated by the duration of silence immediately following the user's turn:
+---
 
-$$\text{Time to First Audio (TTFA)} = t_{\text{first\_audible\_playback}} - t_{\text{user\_turn\_end}}$$
+## Acceptance Test
+The formal acceptance criteria and test definition are implemented in `scripts/benchmark.mjs`:
+- **Standardized Test Phrase**: `"I'll have a large pepperoni pizza and a coke"`
+- **Trial Count & Split**: 30 total controlled trials:
+  - **15 trials** evaluating the **Naive Pipeline** (sequential: full LLM completion $\to$ monolithic Rime synthesis).
+  - **15 trials** evaluating the **Streamed Pipeline** (pipelined: token streaming $\to$ sentence 1 boundary $\to$ immediate Rime synthesis).
+- **Exact Metric Measured**: **Time to First Audio (TTFA)**, defined as $t_1 - t_0$, where $t_0$ is the start of the order turn and $t_1$ is the timestamp when the first synthesized audio chunk arrives ready for immediate audible playback.
+- **Success Threshold**: Achieving a measurable reduction in Time to First Audio across warm conversational trials (target $\ge 25\%$ reduction).
 
-When using large language models, generating a multi-sentence conversational confirmation typically takes 500ms to 1200ms of token generation time. If the Text-to-Speech (TTS) engine is only triggered *after* the entire LLM response has finished:
-1. The user waits through 100% of LLM reasoning time.
-2. The user then waits through 100% of TTS synthesis time for the entire multi-sentence paragraph.
-3. Total latency accumulates sequentially ($\text{Latency}_{\text{total}} = \text{STT} + \text{LLM}_{\text{full}} + \text{TTS}_{\text{full}}$), resulting in 2.5s to 3.5s+ of dead air.
+---
 
-FastLane addresses this problem by decoupling sentence generation: as soon as sentence 1 is tokenized, it is dispatched to Rime TTS while the LLM continues generating subsequent sentences.
+## Test Procedure
+The automated benchmark script (`scripts/benchmark.mjs`) performs the following steps in sequence:
 
-## 3. Acceptance Test
-To evaluate this claim objectively, FastLane includes an automated 30-run test harness (`scripts/benchmark.mjs`):
-- **Test Input Fixture**: A standardized drive-thru order utterance:
-  `"I'll have a large pepperoni pizza and a coke"`
-- **Rounds**:
-  - **15 trials** using the **Naive Pipeline** (sequential: full LLM completion $\to$ full utterance Rime synthesis).
-  - **15 trials** using the **Streamed Pipeline** (pipelined: token streaming $\to$ sentence 1 boundary $\to$ immediate Rime synthesis).
-- **Evaluation Environment**: Controlled programmatic execution eliminating microphone acoustics and human reaction jitter.
+1. **Environment Setup**: Loads environment variables (`RIME_API_KEY`, `GEMINI_API_KEY`, `PORT`) via `dotenv`.
+2. **Voice Resolution**: Calls `getVoiceInfo()` to query the live Rime voice catalog (`https://users.rime.ai/data/voices/all-v2.json`) and verify that the active conversational voice (`astra`, model `coda`, language `eng`) is available and online.
+3. **Execution of 15 Naive Trials**:
+   - Iterates through Runs #1 to #15 with `mode: 'naive'`.
+   - Records Run #1 as "Cold" and Runs #2–#15 as "Warm".
+   - Measures $t_0$, awaits the full Gemini text generation, awaits monolithic Rime TTS audio synthesis, and records $t_1$ and total execution time.
+   - Enforces a 400ms pause between runs to avoid API rate limiting.
+4. **Execution of 15 Streamed Trials**:
+   - Iterates through Runs #16 to #30 with `mode: 'streamed'`.
+   - Records Run #16 as "Cold" and Runs #17–#30 as "Warm".
+   - Measures $t_0$, streams Gemini tokens via Server-Sent Events, emits sentence 1 to Rime as soon as the first sentence boundary (`.`, `!`, `?`) is detected by `SentenceParser`, and records $t_1$ upon receiving the first audio buffer chunk.
+   - Enforces a 400ms pause between runs.
+5. **Statistical Aggregation**:
+   - Computes Naive cold latency (Run #1) and Naive warm average latency (Runs #2–#15).
+   - Computes Streamed cold latency (Run #16) and Streamed warm average latency (Runs #17–#30).
+   - Calculates percentage latency reduction for both warm runs and cold starts.
+6. **Artifact Output**: Formats and prints a terminal summary table and persists the complete structured audit log to `benchmark_results.json`.
 
-## 4. Measurement Definition
+---
+
+## Measurement Definition
 All measurements record explicit, verifiable events:
 
 | Milestone | Definition |
@@ -35,98 +50,88 @@ All measurements record explicit, verifiable events:
 | **Rime First Audio Received** | When the first synthesized audio chunk (MP3) arrives from Rime's TTS API. |
 | **$t_1$ (First Audible Playback)** | When the browser audio subsystem physically triggers the `onplay` event, emitting audible sound. |
 
-$$\text{Primary Metric: Time to First Audio} = t_1 - t_0$$
+$$\text{Primary Metric: Time to First Audio (TTFA)} = t_1 - t_0$$
 
 > [!NOTE]
-> In the CLI test harness (`scripts/benchmark.mjs`), $t_1$ corresponds to the exact millisecond when the first audio buffer chunk arrives from Rime ready for immediate audio buffer playback. In the browser UI, $t_1$ is measured directly when the HTML5 `Audio.onplay` event fires.
+> TTFA measures the duration from the end of the user's turn to the **first audible response**, not total response completion time.
 
-## 5. Test Procedure
-1. Initialize environment with valid `RIME_API_KEY` and `GEMINI_API_KEY`.
-2. Query Rime's live catalog (`https://users.rime.ai/data/voices/all-v2.json`) to confirm active model and voice metadata.
-3. Execute 15 consecutive Naive pipeline trials, logging $t_0$, $t_1$, total completion time, and full confirmation text.
-4. Insert a 400ms pause between runs to prevent rate-limit contention.
-5. Execute 15 consecutive Streamed pipeline trials under the exact same network conditions and test phrase.
-6. Isolate and distinguish:
-   - **Cold Start (Run #1)**: Initial network handshake, TLS negotiation, and unprimed connection.
-   - **Warm Runs (Runs #2 through #15)**: Steady-state conversational dialogue performance.
-7. Compute average warm latency, cold start latency, absolute latency reduction, and percentage latency reduction.
+---
 
-## 6. Streamed Pipeline Behavior
-1. User turn completes ($t_0$).
-2. The order transcript is dispatched to Gemini using `streamGenerateContent` via SSE.
-3. As token fragments stream from Gemini, `SentenceParser` buffers text and checks for grammatical sentence boundaries (`.`, `!`, `?`).
-4. On the very first sentence boundary (e.g. *"Got it, I've added a large pepperoni pizza and a Coke to your order."*), FastLane immediately dispatches an HTTP request to `https://users.rime.ai/v1/rime-tts`.
-5. Rime synthesizes audio for that single sentence and returns the MP3 buffer.
-6. The client receives the audio chunk and begins audible playback immediately ($t_1$).
-7. Meanwhile, Gemini continues generating sentence 2 in the background. Sentence 2 is parsed, dispatched to Rime, and seamlessly appended to the client's audio queue before sentence 1 finishes playing.
+## Results
+The numbers below reflect the actual current measurements recorded in `benchmark_results.json`:
 
-## 7. Naive Pipeline Behavior
-1. User turn completes ($t_0$).
-2. The order transcript is dispatched to Gemini using standard `generateContent`.
-3. The system waits until 100% of the LLM response tokens are generated.
-4. The entire multi-sentence response is packaged into a single monolithic HTTP request to `https://users.rime.ai/v1/rime-tts`.
-5. Rime synthesizes the entire response and returns the full audio buffer.
-6. The client receives the audio buffer and begins playback ($t_1$).
+- **Active Voice Used**: `speaker: "astra"`, `modelId: "coda"`, `languageCode: "eng"` (verified out of 162 English voices in the `coda` model)
+- **Test Date**: `2026-09-08T05:27:14.760Z`
+- **Test Phrase**: `"I'll have a large pepperoni pizza and a coke"`
 
-Because TTS synthesis cannot begin until the LLM generation has finished, the user experiences the combined cumulative delay of both stages.
+### Latency Summary Table
 
-## 8. Results & Empirical Observations
+| Pipeline | Cold Start ($t_1 - t_0$) | Warm Average ($t_1 - t_0$) | Warm Min | Warm Max | Warm Run Count |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Naive Pipeline** | 3,142 ms | 2,666 ms | 2,337 ms (Run #5) | 3,159 ms (Run #3) | 14 runs |
+| **Streamed Pipeline** | 2,306 ms | 1,858 ms | 1,105 ms (Run #18) | 2,481 ms (Run #27) | 14 runs |
+| **Improvement** | **27% reduction** (836 ms faster) | **30% reduction** (~808 ms faster) | — | — | — |
 
-When executed against live cloud endpoints (Google Gemini Flash & Rime TTS `coda` model), the reproducible benchmark exhibits the following performance characteristics:
+The streamed pipeline consistently reduces Time to First Audio by **30% on warm conversational turns**, confirming that overlapping sentence 1 synthesis with ongoing LLM generation effectively eliminates dead-air delay.
 
-| Metric | Naive Pipeline (Baseline) | Streamed Pipeline (FastLane) | Impact |
-| :--- | :---: | :---: | :---: |
-| **Cold Start Latency ($t_1 - t_0$)** | ~2,400 ms – 2,700 ms | ~2,100 ms – 2,300 ms | ~10% – 18% reduction |
-| **Warm Average Latency ($t_1 - t_0$)** | ~2,500 ms – 2,800 ms | ~1,400 ms – 1,750 ms | **~35% – 45% reduction (~1.0s to 1.3s faster)** |
-| **Full LLM Waiting Delay** | Compounded before TTS | Overlapped during Sentence 1 playback | Zero perceived LLM tail delay |
+---
 
-> [!IMPORTANT]
-> Live test results depend on real-time network conditions and API responsiveness. Reviewers can verify these numbers independently by executing the reproduction script below.
+## Additional Live Observation (Small Sample)
+In addition to the formal 30-run benchmark in `benchmark_results.json`, an empirical 3-pair warm live comparison was observed:
 
-## 9. Exact Environment & Configuration
+- **Run 1**:
+  - Streamed TTFA: 1,995 ms
+  - Naive TTFA: 2,034 ms
+  - Result: Streamed advantage of 39 ms
+- **Run 2**:
+  - Streamed TTFA: 1,647 ms
+  - Naive TTFA: 3,261 ms
+  - Result: Streamed advantage of 1,614 ms
+- **Run 3**:
+  - Streamed TTFA: 2,191 ms
+  - Naive TTFA: 1,986 ms
+  - Result: Naive advantage of 205 ms
 
-```json
-{
-  "tts_provider": "Rime Labs",
-  "endpoint": "https://users.rime.ai/v1/rime-tts",
-  "modelId": "coda",
-  "speaker": "astra",
-  "lang": "en",
-  "samplingRate": 24000,
-  "audioFormat": "audio/mpeg",
-  "llm_provider": "Google",
-  "llm_model": "gemini-flash-lite-latest",
-  "test_phrase": "I'll have a large pepperoni pizza and a coke",
-  "transport": "HTTP / Server-Sent Events (SSE)"
-}
-```
+> [!NOTE]
+> Run 3 demonstrates that individual live runs can favor Naive due to internet roundtrip jitter to the cloud TTS endpoint and concise LLM responses. Streaming provides a consistent statistical advantage across larger sample sizes, but does not guarantee faster timing on every single arbitrary execution.
 
-## 10. Limitations
-1. **First Sentence Length**: If the LLM generates a very long first sentence before a punctuation boundary, the streaming advantage is reduced. The system instruction prompts Gemini to keep the opening confirmation sentence concise (8–14 words).
-2. **Network Jitter**: Cloud roundtrips to both Google and Rime introduce network latency. Cold runs exhibit higher latency due to initial TLS connection establishment.
-3. **Audio Autoplay Policies**: In browser environments, audio playback requires prior user interaction (such as holding the push-to-talk button or clicking a test chip) to satisfy browser autoplay security policies.
+---
 
-## 11. Reproduction Instructions
-
-To reproduce the benchmark on your local machine:
+## Reproduction Instructions
+To reproduce the 30-trial benchmark locally:
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/Hiten0305l/fastlane.git
-cd fastlane
-
-# 2. Install dependencies
+# 1. Install dependencies
 npm install
 
-# 3. Set API keys in .env
-echo "RIME_API_KEY=your_actual_rime_api_key" >> .env
-echo "GEMINI_API_KEY=your_actual_gemini_api_key" >> .env
-
-# 4. Confirm live voice catalog
+# 2. Check live voice catalog
 npm run catalog:check
 
-# 5. Run the 30-trial acceptance benchmark
+# 3. Run the automated 30-run benchmark
 npm run benchmark
 ```
 
-The script will log individual run latencies (`t1 - t0`) to the terminal and write a structured audit record to `benchmark_results.json`.
+The script will log individual run latencies (`t1 - t0`) to the terminal and output the audit record to `benchmark_results.json`.
+
+---
+
+## Limitations
+
+### 1. Cold start vs. warm run latency
+Based on the actual measurements in `benchmark_results.json`:
+- **Cold Start Latency**: Naive measured **3,142 ms** vs. Streamed at **2,306 ms** (a 27% reduction).
+- **Warm Run Latency**: Naive averaged **2,666 ms** vs. Streamed at **1,858 ms** (a 30% reduction).
+
+The first request after a server restart exhibits higher latency due to initial DNS lookups, TCP connection setup, TLS handshakes to `generativelanguage.googleapis.com` and `users.rime.ai`, and voice catalog fetching. Subsequent warm requests benefit from established HTTP keep-alive connections and in-memory voice metadata. This benchmark observation reflects network transport and socket state rather than a universal fixed latency delta across all runtime environments.
+
+### 2. Streaming can create an audio gap between sentence chunks
+In Streamed mode, sentence 1 is synthesized by Rime and begins playing while Gemini is still generating sentence 2. If sentence 1 finishes playing before the Rime audio for sentence 2 is ready, the user may hear a short silence between the two audio chunks:
+```
+Sentence 1 → Rime → 🔊 playing
+Sentence 2 → still being generated
+                     ↓
+              not ready yet
+                     ↓
+                 silence
+```
+This is a practical streaming-specific failure case that occurs when LLM token generation or subsequent TTS synthesis experiences network jitter. The Naive pipeline does not exhibit this streaming-specific issue because it waits for the complete LLM response and synthesizes a single contiguous audio file before beginning playback.

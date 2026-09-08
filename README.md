@@ -1,181 +1,225 @@
 # FastLane
 
-## What it is
-FastLane is an ultra-low-latency voice ordering assistant designed for quick-service restaurant (QSR) and drive-thru environments. Built with **Rime TTS** and **Google Gemini**, FastLane demonstrates how pipelining sentence-level speech synthesis reduces conversational latency to deliver human-like, rapid spoken interactions.
+## 1. Project Overview
+FastLane is an ultra-low-latency voice ordering assistant designed for quick-service restaurant (QSR) and drive-thru environments. Powered by **Rime TTS** and **Google Gemini**, FastLane demonstrates how pipelining sentence-level speech synthesis concurrently with LLM token generation dramatically reduces conversational response latency (Time to First Audio).
 
-## Problem
-In drive-thru voice systems, conversational responsiveness directly dictates customer throughput and order confidence. The critical latency bottleneck in voice agents is:
+---
 
-$$\text{Time to First Audio} = \text{End of User Turn} \to \text{First Audible Spoken Word}$$
+## 2. User & Problem
+In drive-thru voice systems, conversational responsiveness directly dictates customer throughput and order confidence. The critical latency bottleneck in conversational voice agents is:
+
+$$\text{Time to First Audio (TTFA)} = \text{End of User Turn} \to \text{First Audible Spoken Word}$$
 
 In traditional (Naive) voice pipelines:
-1. The user finishes speaking.
+1. The customer finishes speaking.
 2. Speech-to-Text (STT) transcribes the speech.
-3. The LLM generates the entire multi-sentence response.
+3. The LLM generates the entire multi-sentence confirmation response.
 4. The system sends the complete text block to a Text-to-Speech (TTS) engine.
 5. The audio synthesizes and finally begins playing in the user's speaker.
 
-Waiting for 100% of LLM tokens before triggering speech synthesis creates an uncomfortable, awkward silence of 2.5 to 3.5+ seconds, breaking the conversational flow of a real drive-thru.
+Waiting for 100% of LLM tokens before triggering speech synthesis creates an uncomfortable silence of 2.5 to 3.5+ seconds, breaking the conversational flow of a real drive-thru.
 
-## Solution
-FastLane solves this voice-engineering challenge through **early sentence-level pipelined streaming**:
-- As Gemini streams response tokens, FastLane detects the very first complete sentence boundary (`.`, `!`, `?`).
-- FastLane dispatches that first sentence to **Rime TTS** immediately, while Gemini continues generating the rest of the response in parallel.
-- The browser begins audible playback of the first sentence as soon as Rime's audio buffer arrives.
-- Subsequent sentences are synthesized and queued seamlessly in the background while the user is already listening to the first sentence.
+---
 
-This overlaps LLM reasoning and audio synthesis, cutting the perceived response delay dramatically without requiring pre-recorded or static response caching.
+## 3. Why Voice is Essential
+In a physical drive-thru lane, voice is the primary interface. Drivers must keep their hands on the wheel and eyes on the lane, making visual screens secondary. If a voice system takes multiple seconds to respond, drivers assume the system didn't hear them and repeat themselves, causing collision errors, broken order states, and delayed queue times. Cutting perceived voice latency to natural human pause times (~1.5s) is critical for commercial adoption.
 
-## Architecture
+---
 
-The end-to-end processing pipeline:
+## 4. Architecture
+FastLane processes customer orders through an end-to-end voice pipeline:
 
 ```
-[Customer Speaks]
-       │
-       ▼ (Push-to-Talk Release / End of Turn)
-[Browser STT] (Web Speech API / Direct Input Fallback)
-       │
-       ▼ (User Transcript dispatched to FastLane Server)
-[Orchestration Engine (server.js & pipelineService.js)]
-       │
-       ├─────────────────────────────────────────┐
-       ▼                                         ▼
-[Streamed Pipeline (Fast Mode)]          [Naive Pipeline (Standard Mode)]
-       │                                         │
-Gemini token stream starts                       Gemini generates 100% full reply
-       │                                         │
-Detect 1st sentence boundary                     Full reply finished
-       │                                         │
-Dispatch 1st sentence to Rime TTS API            Dispatch entire text to Rime TTS API
-       │                                         │
-1st Audio chunk arrives                          Full audio arrives
-       │                                         │
-Browser begins AUDIBLE playback (t1)             Browser begins AUDIBLE playback (t1)
-       │
+[Customer Speaks / Enters Text]
+              │
+              ▼
+[Speech-to-Text (STT)]
+  • Browser Web Speech API (webkitSpeechRecognition / SpeechRecognition)
+  • Manual text input fallback
+              │
+              ▼ (POST /api/pipeline via Server-Sent Events)
+[FastLane Orchestration Engine (server.js & services/pipelineService.js)]
+              │
+      ┌───────┴────────────────────────────────────────┐
+      ▼                                                ▼
+[Streamed Pipeline (Fast Mode)]              [Naive Pipeline (Standard Mode)]
+      │                                                │
+Gemini token stream begins                   Gemini generates 100% full reply
+(streamGenerateContent?alt=sse)              (generateContent)
+      │                                                │
+SentenceParser detects 1st sentence          Full text generation completes
+boundary ('.', '!', '?')                               │
+      │                                      Dispatch entire text to Rime TTS API
+Dispatch 1st sentence to Rime TTS API                  │
+(POST https://users.rime.ai/v1/rime-tts)      Full audio buffer received
+      │                                                │
+1st sentence audio received (MP3)            Browser begins audible playback
+      │
+Browser begins AUDIBLE playback (t₁)
+      │
 Subsequent sentences synthesized & queued
-while user is listening
+concurrently while user listens
 ```
 
-### How Streamed Differs from Naive
-- **Naive Pipeline**: Monolithic sequential execution: $\text{STT} \to \text{Full LLM generation} \to \text{Full TTS synthesis} \to \text{Playback}$.
-- **Streamed Pipeline**: Pipelined overlapping execution: $\text{STT} \to \text{LLM token stream} \to \text{Sentence 1 boundary} \to \text{Rime TTS Sentence 1} \to \text{Audible Playback}$, while Sentence 2+ synthesizes concurrently.
+---
 
-## Why Rime
-Voice is the primary human interface in a drive-thru. Text-on-screen is secondary; the customer listens to audio confirmation while driving.
-
-Rime TTS is chosen because:
-1. **Ultra-Low Synthesis Latency**: Rime synthesizes natural conversational audio rapidly, enabling sentence-level pipelining that fits within conversational pause tolerances.
-2. **Conversational Naturalness**: The `coda` model with natural English voices (such as `astra`) delivers authentic cadence, inflection, and tone suited for customer-facing order confirmation.
-3. **HTTP Streaming Compatibility**: Supports standard 24 kHz MP3 audio synthesis with consistent per-sentence turnaround.
-
-## Metrics
-The primary judged metric is:
-
-$$\text{Time to First Audio (TTFA)} = t_{\text{first\_audible\_playback}} - t_{\text{user\_release}}$$
-
-- **User Release ($t_0$)**: The exact moment the user releases the push-to-talk button (or submits an order turn).
-- **STT Milestone**: When speech recognition completes and order text is submitted to the pipeline.
-- **LLM First Text Milestone**: When the first usable sentence boundary is parsed from the Gemini token stream.
-- **Rime Audio Ready Milestone**: When the synthesized audio buffer for the first sentence is received.
-- **First Audible Playback ($t_1$)**: When the browser's audio subsystem physically begins emitting audible speech (`audio.onplay`).
-
-> [!IMPORTANT]
-> Time to First Audio is strictly measured to **audible playback**, not merely backend completion, LLM generation end, or audio file arrival.
-
-## Benchmark Methodology
-To ensure reproducible and un-fabricated latency comparisons:
-1. **Controlled Fixture Test**: A fixed drive-thru order fixture (`"I'll have a large pepperoni pizza and a coke"`) is fed to both the Naive and Streamed pipelines across consecutive runs.
-2. **Automated Test Harness**: `npm run benchmark` executes 15 Naive runs and 15 Streamed runs against the live Rime and Gemini APIs.
-3. **Distinction of Cold vs. Warm Runs**:
-   - **Cold run (Run #1)**: Measures initial connection setup, TLS handshake, and first synthesis.
-   - **Warm runs (Runs #2-#15)**: Measures ongoing conversational dialogue performance.
-4. **Live UI Measurement**: In the web application, every user interaction records an actual trial with mode, timestamp, exact Time to First Audio, and stage durations. The Performance Comparison bar computes:
-   - $\text{Absolute Improvement} = \text{Naive TTFA} - \text{Streamed TTFA}$
-   - $\text{Percentage Improvement} = \frac{\text{Absolute Improvement}}{\text{Naive TTFA}} \times 100$
-
-## Setup
+## 5. Setup Instructions
 
 ### Prerequisites
-- Node.js 20+ (Node 22 or 25 recommended)
+- Node.js 20+ (ES Modules support required)
 - A valid Rime API key ([app.rime.ai](https://app.rime.ai))
 - A valid Google Gemini API key ([aistudio.google.com](https://aistudio.google.com))
 
 ### Installation
 ```bash
-git clone https://github.com/Hiten0305l/fastlane.git
-cd fastlane
+git clone https://github.com/Hiten0305l/FLane.git
+cd FLane
 npm install
 ```
 
-## Environment Variables
-Create a `.env` file from the provided `.env.example`:
+### Running the Application
+FastLane provides the following npm scripts defined in `package.json`:
+- **Check Voice Catalog**:
+  ```bash
+  npm run catalog:check
+  ```
+- **Start Development Server**:
+  ```bash
+  npm run dev
+  ```
+- **Start Production Server**:
+  ```bash
+  npm start
+  ```
+- **Run Acceptance Benchmark**:
+  ```bash
+  npm run benchmark
+  ```
+Once the server is running, open [http://localhost:3000](http://localhost:3000) in your browser.
 
+---
+
+## 6. Environment Variables
+Create a `.env` file from `.env.example`:
 ```bash
 cp .env.example .env
 ```
-
-Configure your API keys in `.env`:
+Populate `.env` with your API credentials:
 ```env
 # FastLane Environment Configuration
 RIME_API_KEY=your_rime_api_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
 PORT=3000
 ```
+*(Note: `.env` is listed in `.gitignore` and must never be committed to source control).*
 
-> [!CAUTION]
-> Never commit `.env` or any real API credentials to source control. `.env` is ignored in `.gitignore`.
+---
 
-## Running the App
+## 7. Third-Party Services
+FastLane connects to the following external APIs:
+1. **Rime TTS API**:
+   - **Synthesis Endpoint**: `https://users.rime.ai/v1/rime-tts` (HTTP POST) — audio synthesis.
+   - **Voice Catalog Endpoint**: `https://users.rime.ai/data/voices/all-v2.json` (HTTP GET) — queries available models and verified English speaker IDs.
+2. **Google Gemini API**:
+   - **Streamed Generation Endpoint**: `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:streamGenerateContent?key=${apiKey}&alt=sse` (HTTP POST, SSE) — used in Streamed mode.
+   - **Full Generation Endpoint**: `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}` (HTTP POST, JSON) — used in Naive mode.
+3. **Speech-to-Text (STT)**:
+   - **Browser Web Speech API**: `window.SpeechRecognition` / `window.webkitSpeechRecognition` executing client-side in the browser (`public/app.js`). Direct manual text entry is provided as a non-microphone fallback.
 
-### 1. Check Voice Catalog
-Verify that your Rime credentials are valid and query the live public catalog:
-```bash
-npm run catalog:check
+---
+
+## 8. Gemini Integration
+- **Model**: `gemini-flash-lite-latest` via Google Generative Language API.
+- **System Instructions**: Configured in `services/geminiService.js` for natural conversational English order confirmations (1 to 2 short sentences, concise, conversational tone, Indian Rupee pricing, and structured order state extraction via `ORDER_STATE: {"items": [...], "confirmed": boolean}`).
+- **Dynamic Phrasing**: Avoids robotic stock phrases and adapts dynamically across turns and after customer interruptions.
+
+---
+
+## 9. Rime Integration
+Rime is the primary voice synthesis engine across all spoken flows in FastLane:
+- **Model ID**: `coda`
+- **Speaker / Voice Name**: `astra` (natural English conversational voice, confirmed out of 162 verified English voices in `coda`)
+- **Language Code**: `eng` in catalog resolution, submitted as `'en'` in API payload (`lang: activeLang || 'en'`)
+- **Endpoint**: `https://users.rime.ai/v1/rime-tts`
+- **Audio Format & Sample Rate**: `audio/mpeg` (requested via header `'Accept': 'audio/mpeg'`), `samplingRate: 24000` (24 kHz)
+- **Transport**: HTTP POST with `Authorization: Bearer ${apiKey}` and JSON payload, returning binary MP3 array buffer.
+
+---
+
+## 10. Naive vs. Streamed Modes
+1. **Naive Pipeline (Standard Mode)**:
+   - Blocks on full Gemini text completion before dispatching text to Rime TTS.
+   - Full audio is returned and played in one contiguous piece.
+   - Perceived latency: $\text{STT} + \text{Gemini}_{\text{full}} + \text{Rime}_{\text{full}}$ (~2.6s–3.1s).
+2. **Streamed Pipeline (Fast Mode)**:
+   - Dispatches the first grammatical sentence (`.`, `!`, `?`) to Rime immediately as tokens stream from Gemini.
+   - Browser starts audible playback as soon as Sentence 1 arrives (~1.5s–1.9s).
+   - Subsequent sentences synthesize concurrently in the background and are queued seamlessly.
+
+---
+
+## 11. TTFA Definition and Measurement
+**Time to First Audio (TTFA)** is defined strictly as:
+
+$$\text{TTFA} = t_{\text{first\_audible\_playback}} - t_{\text{user\_release}}$$
+
+- **$t_0$ (User Release)**: The instant the user releases the push-to-talk button or submits the order turn.
+- **$t_1$ (First Audible Playback)**: When the browser audio subsystem physically triggers the `audio.onplay` event, emitting sound into the speaker.
+- **Distinction**: TTFA measures the time until the user hears the bot begin speaking, distinct from total turn completion time.
+
+---
+
+## 12. Failure & Fallback Behavior
+1. **Timeout & Catch**:
+   - In `services/pipelineService.js`, each sentence synthesis call to Rime is wrapped with a 10-second timeout (`timeoutMs: 10000`).
+   - If a Rime API request fails, times out, or network connectivity drops, the error is caught within the sequential synthesis promise chain (`synthChain.catch`), recording `streamFailureError`.
+2. **Automatic Fallback to Naive Mode**:
+   - `executeStreamedPipeline` immediately logs the failure and emits a `fallback` event over Server-Sent Events.
+   - The server then automatically calls `executeNaivePipeline` with `fallbackTriggered: true`, ensuring order completion.
+3. **Client UI State Update**:
+   - In `public/app.js`, upon receiving the `fallback` event, the client triggers `setMode('naive')`.
+   - The UI updates the active badge to **🐢 Naive Mode**, switches the telemetry stage descriptions to sequential full-reply mode, and informs the user.
+
+---
+
+## 13. Known Limitations
+
+### 1. Cold start vs. warm run latency
+Inspecting the current benchmark implementation and the actual `benchmark_results.json` reveals a notable difference between initial cold requests and subsequent warm requests:
+- **Streamed Pipeline**: Cold start latency measured **2,306 ms**, compared to a warm run average of **1,858 ms**.
+- **Naive Pipeline**: Cold start latency measured **3,142 ms**, compared to a warm run average of **2,666 ms**.
+- **Latency Reduction**: Streamed mode showed a **27% reduction** (836 ms faster) on the cold start and a **30% reduction** (~808 ms faster) across warm runs.
+
+After starting or restarting the server, the very first request incurs connection-level overhead, including DNS lookups, TLS handshakes to both `generativelanguage.googleapis.com` and `users.rime.ai`, and initial voice catalog resolution. Subsequent warm requests benefit from persistent HTTP keep-alive sockets and memory-cached voice metadata, resulting in lower, steady-state response times.
+
+### 2. Streaming can create an audio gap between sentence chunks
+In Streamed mode, sentence 1 is synthesized by Rime and begins playing in the user's speaker while Gemini is still generating sentence 2:
 ```
-
-### 2. Start the Development Server
-```bash
-npm run dev
+Sentence 1 → Rime → 🔊 playing
+Sentence 2 → still being generated
+                     ↓
+              not ready yet
+                     ↓
+                 silence
 ```
-Or for production mode:
-```bash
-npm start
-```
-Open [http://localhost:3000](http://localhost:3000) in your web browser.
+If sentence 1 finishes playing before sentence 2's audio synthesis is ready, the user may hear a short silence between the two audio chunks. This is a practical, streaming-specific failure case. The Naive pipeline does not exhibit this streaming-specific issue because it waits for the full text response before synthesizing and playing the complete audio file as a single contiguous block.
 
-### 3. Run the Acceptance Benchmark Suite
-Execute the 30-run controlled benchmark:
+---
+
+## 14. Reproduction & Benchmark Instructions
+To reproduce the acceptance benchmark:
 ```bash
 npm run benchmark
 ```
-This generates `benchmark_results.json` containing the exact run-by-run measurements.
+This runs `scripts/benchmark.mjs` against live endpoints (15 Naive runs + 15 Streamed runs) using the standardized test phrase `"I'll have a large pepperoni pizza and a coke"` and saves results to `benchmark_results.json`.
 
-## Repository Structure
+---
 
-```
-fastlane/
-├── server.js                  # Express web server & SSE streaming pipeline endpoints
-├── services/
-│   ├── pipelineService.js     # Orchestrates Streamed vs. Naive pipelines
-│   ├── rimeService.js         # Direct Rime TTS API integration (v1/rime-tts)
-│   ├── geminiService.js       # Google Gemini LLM streaming & structured order extraction
-│   ├── sentenceParser.js      # Real-time sentence boundary tokenizer for streaming audio
-│   └── voiceCatalog.js        # Live Rime voice catalog resolver and verification
-├── scripts/
-│   ├── benchmark.mjs          # 30-run automated acceptance test harness
-│   └── check_catalog.mjs      # Diagnostic script to check live Rime voices
-├── public/
-│   ├── index.html             # User View (clean ordering) and Insights View (latency telemetry)
-│   ├── app.js                 # Push-to-talk, Audio Queue, VAD, and real-trials comparison logic
-│   └── style.css              # Custom styling for drive-thru UI and timing flow diagrams
-├── .env.example               # Safe template for environment variables
-├── .gitignore                 # Enforces security of secrets, logs, and build artifacts
-├── README.md                  # Comprehensive project documentation
-└── RIME_EVIDENCE.md           # Formal latency claim, measurement criteria, and test evidence
-```
-
-## Limitations
-1. **Push-to-Talk Interface**: FastLane operates via push-to-talk and click-to-test controls. While browser VAD monitors for speech during playback to support interruption, noisy microphone environments without headphones may pick up speaker feedback.
-2. **Network Dependency**: Measurements include live cloud roundtrips to both Google Gemini and Rime TTS. Actual numbers vary based on geographical proximity to server clusters and network latency.
-3. **Fallback Delay**: When the streaming pipeline encounters an error or network drop, FastLane safely falls back to standard Naive synthesis. The fallback ensures order completion but incurs the standard Naive latency.
+## 15. Exact Rime Configuration
+The shipped application strictly uses:
+- **Model ID**: `coda`
+- **Speaker**: `astra`
+- **Language**: `eng` / `en`
+- **Endpoint**: `https://users.rime.ai/v1/rime-tts`
+- **Audio Format**: `audio/mpeg` (24 kHz)
+- **Transport**: HTTP POST with JSON body and Bearer token

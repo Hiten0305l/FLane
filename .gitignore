@@ -10,6 +10,7 @@ node_modules/
 dist/
 build/
 *.log
+logs/
 
 # Scratch scripts and temporary test files
 scratch/

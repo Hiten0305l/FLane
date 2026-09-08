@@ -1,6 +1,8 @@
 // services/geminiService.js
 // Handles LLM order confirmation, structured order state tracking, dynamic phrasing variation, and interruption recovery.
 
+import { findMenuItem, getCanonicalItemName, MENU_CATALOG } from './menuCatalog.js';
+
 const PRIMARY_MODEL = 'gemini-flash-lite-latest';
 
 const SYSTEM_INSTRUCTION = `You are FastLane, an ultra-fast, friendly, and natural English-speaking drive-thru order-taking assistant.
@@ -9,6 +11,7 @@ Primary Directives:
 1. Language: English ONLY for all spoken responses. Do NOT generate Hinglish, Hindi, Devanagari, or any other language under any circumstance.
 2. Persona: Sound like a real person taking an order — energetic, professional, friendly, and natural. Not a robotic script.
 3. Length: Exactly 1 to 2 short sentences. Conversational, concise, and optimized for ultra-low latency voice synthesis.
+4. Currency: All prices are in Indian Rupees (₹ / INR). Never mention or output dollars ($).
 
 Phrasing & Dynamic Variation Guidelines:
 - Vary your phrasing naturally across turns — do not reuse the exact same sentence structure or stock phrases repeatedly. Sound like a real person taking an order, not a script.
@@ -17,13 +20,20 @@ Phrasing & Dynamic Variation Guidelines:
 - Never use random filler, preamble, or off-topic chatter.
 - Never upsell or mention unrequested menu items.
 
+Substitutions & Replacement Directives:
+- If the customer asks to replace, swap, switch, or substitute an item (e.g. "replace the fries with nuggets", "change fries to burger", "substitute fries for dessert"):
+  * Replace ONLY the specified item in the order.
+  * All other existing items in currentOrderState MUST remain intact and untouched (e.g. if order was ["Double Smash Burger", "Crispy Fries"] and customer says "replace the fries with nuggets", the new items array is strictly ["Double Smash Burger", "Chicken Nuggets"]).
+  * Never clear or remove unmentioned items.
+  * Acknowledge the exact substitution naturally in 1 short spoken sentence.
+
 - If this turn is an INTERRUPTION (isInterruption: true):
   * The customer interrupted mid-speech with a correction, substitution, addition, or cancellation.
   * Carefully parse customerUtterance and apply the exact change requested.
   * Discard whatever incomplete suggestions or options you were previously offering.
   * Merge the correction with previously confirmed attributes from currentOrderState.
-  * For example, if currentOrderState had ["large pepperoni pizza", "Coke"] and customer interrupts with "make that a Sprite and add garlic bread", the items array becomes ["large pepperoni pizza", "Sprite", "garlic bread"].
-  * Acknowledge their specific correction directly and naturally (e.g. "Switched that Coke to a Sprite and added garlic bread for you! Anything else?").
+  * For example, if currentOrderState had ["Double Smash Burger", "Crispy Fries"] and customer interrupts with "make that a Sprite and add garlic bread", the items array becomes ["Double Smash Burger", "Crispy Fries", "Sprite", "Garlic Bread"].
+  * Acknowledge their specific correction directly and naturally.
 
 Output Format:
 You MUST output your response strictly in two parts:
@@ -239,64 +249,87 @@ function updateOrderStateHeuristic(currentOrderState, userText, isInterruption) 
   let items = [...(currentOrderState?.items || [])];
   const lower = userText.toLowerCase().trim();
 
-  // 1. Cancellations / Removals
+  // 1. Explicit Replacement / Substitution handling:
+  // e.g. "replace the fries with nuggets", "substitute the fries for a burger", "change fries to nuggets", "swap the fries with nuggets", "instead of fries, give me nuggets"
+  const replaceMatch = lower.match(/(?:replace|substitute|switch|change|swap)\s+(?:the\s+)?(.+?)\s+(?:with|for|to)\s+(?:a\s+|an\s+|the\s+)?(.+)/i)
+    || lower.match(/instead of\s+(?:the\s+)?(.+?)(?:,\s*|\s+)(?:give me|get me|i'll have|i want|make it|make that)?\s*(?:a\s+|an\s+|the\s+)?(.+)/i);
+
+  if (replaceMatch) {
+    const oldQuery = replaceMatch[1].trim().replace(/\b(please|thanks)\b/gi, '').trim();
+    const newQuery = replaceMatch[2].trim().replace(/[.,!?;]+$/, '').replace(/\b(please|thanks)\b/gi, '').trim();
+
+    const oldItemCanonical = findMenuItem(oldQuery);
+    const newItemCanonical = findMenuItem(newQuery);
+
+    const oldName = oldItemCanonical ? oldItemCanonical.name : oldQuery;
+    const newName = newItemCanonical ? newItemCanonical.name : newQuery;
+
+    // Find the item to replace in current order
+    let targetIdx = -1;
+    if (oldItemCanonical) {
+      targetIdx = items.findIndex(it => {
+        const itLower = it.toLowerCase();
+        return itLower === oldItemCanonical.name.toLowerCase() ||
+               oldItemCanonical.aliases.some(al => itLower.includes(al.toLowerCase()));
+      });
+    }
+    if (targetIdx === -1) {
+      targetIdx = items.findIndex(it => it.toLowerCase().includes(oldQuery.toLowerCase()));
+    }
+
+    if (targetIdx !== -1) {
+      // Replace ONLY that item!
+      items[targetIdx] = newName;
+    } else {
+      // If old item not found in order, add new item
+      items.push(newName);
+    }
+
+    return { items, confirmed: false, replacedOld: oldName, replacedNew: newName };
+  }
+
+  // 2. Cancellations / Removals
   if (lower.startsWith('no ') || lower.includes('cancel ') || lower.includes('remove ') || lower.includes('without ')) {
     const target = lower.replace(/^(no|cancel|remove|without)\s+/i, '').replace(/\b(please|thanks|the)\b/gi, '').trim();
     if (target) {
-      items = items.filter(it => !it.toLowerCase().includes(target));
+      const match = findMenuItem(target);
+      if (match) {
+        items = items.filter(it => !match.aliases.some(al => it.toLowerCase().includes(al)));
+      } else {
+        items = items.filter(it => !it.toLowerCase().includes(target));
+      }
     }
+    return { items, confirmed: false };
   }
 
-  // 2. Pizza flavor substitutions
-  if (lower.includes('margherita')) {
-    const pizzaIdx = items.findIndex(it => it.toLowerCase().includes('pizza'));
-    if (pizzaIdx !== -1) {
-      const existing = items[pizzaIdx];
-      const size = existing.toLowerCase().includes('large') ? 'large ' : (existing.toLowerCase().includes('medium') ? 'medium ' : '');
-      items[pizzaIdx] = `${size}Margherita pizza`.trim();
-    } else {
-      items.push('large Margherita pizza');
+  // 3. Centralized menu item additions / substitutions
+  const matchedItem = findMenuItem(lower);
+  if (matchedItem) {
+    const canonicalName = matchedItem.name;
+    // If it's a direct item request, check if we should substitute in interruption mode
+    if (isInterruption) {
+      // If user is interrupting with a new item of same category (e.g., drinks or pizzas)
+      const sameCatIdx = items.findIndex(it => {
+        const existing = findMenuItem(it);
+        return existing && existing.category === matchedItem.category;
+      });
+      if (sameCatIdx !== -1) {
+        items[sameCatIdx] = canonicalName;
+        return { items, confirmed: false };
+      }
     }
-  } else if (lower.includes('pepperoni')) {
-    const pizzaIdx = items.findIndex(it => it.toLowerCase().includes('pizza'));
-    if (pizzaIdx !== -1) {
-      items[pizzaIdx] = 'large pepperoni pizza';
-    } else {
-      items.push('large pepperoni pizza');
+
+    if (!items.some(it => it.toLowerCase().includes(matchedItem.id) || it.toLowerCase() === canonicalName.toLowerCase())) {
+      items.push(canonicalName);
     }
+    return { items, confirmed: false };
   }
 
-  // 3. Drink substitutions or additions
-  if (lower.includes('diet coke') || lower.includes('diet')) {
-    const drinkIdx = items.findIndex(it => /coke|sprite|drink|soda/i.test(it));
-    if (drinkIdx !== -1) items[drinkIdx] = 'Diet Coke';
-    else items.push('Diet Coke');
-  } else if (lower.includes('sprite')) {
-    const drinkIdx = items.findIndex(it => /coke|drink|soda/i.test(it));
-    if (drinkIdx !== -1) items[drinkIdx] = 'Sprite';
-    else items.push('Sprite');
-  } else if (lower.includes('coke') && !lower.includes('diet')) {
-    if (!items.some(it => /coke/i.test(it))) items.push('Coke');
-  }
-
-  // 4. Sides & other food items
-  if (lower.includes('garlic bread')) {
-    if (!items.some(it => /garlic bread/i.test(it))) items.push('garlic bread');
-  } else if (lower.includes('fries')) {
-    if (!items.some(it => /fries/i.test(it))) items.push('large fries');
-  } else if (lower.includes('burger') || lower.includes('cheeseburger')) {
-    if (!items.some(it => /burger/i.test(it))) items.push('two double cheeseburgers');
-  } else if (lower.includes('nugget') || lower.includes('wings')) {
-    if (!items.some(it => /nugget|wing/i.test(it))) items.push('chicken wings');
-  } else if (!isInterruption && lower.includes('pizza')) {
-    const size = lower.includes('large') ? 'large pizza' : 'pizza';
-    if (!items.some(i => i.includes('pizza'))) items.push(size);
-  } else {
-    // If not matched above, extract cleaned item description
-    const clean = userText.replace(/^(can i get|i'd like|i will have|i'll have|give me|please get me|make that a|switch that to|change that to|just give me|actually|wait|no)\s+/i, '').trim();
-    if (clean && clean.length > 2 && !items.includes(clean) && !/^(yes|no|ok|okay|wait|stop)$/i.test(clean)) {
-      items.push(clean);
-    }
+  // 4. Generic cleaned description fallback
+  const clean = userText.replace(/^(can i get|i'd like|i will have|i'll have|give me|please get me|make that a|switch that to|change that to|just give me|actually|wait|no|add)\s+/i, '').trim();
+  if (clean && clean.length > 2 && !items.includes(clean) && !/^(yes|no|ok|okay|wait|stop)$/i.test(clean)) {
+    const canonical = getCanonicalItemName(clean);
+    items.push(canonical);
   }
 
   return { items, confirmed: false };
@@ -306,6 +339,11 @@ export function getFallbackReply({ text, orderState = { items: [] }, isInterrupt
   const updatedState = updateOrderStateHeuristic(orderState, text, isInterruption);
   const itemsDesc = updatedState.items.join(' and ') || 'your order';
 
+  if (updatedState.replacedOld && updatedState.replacedNew) {
+    const reply = `Got it! I've replaced the ${updatedState.replacedOld} with ${updatedState.replacedNew} for you. Anything else?`;
+    return { reply, orderState: { items: updatedState.items, confirmed: updatedState.confirmed } };
+  }
+
   if (isInterruption) {
     const interruptVariations = [
       `Sure thing, I've updated your order to ${itemsDesc}. Anything else?`,
@@ -314,7 +352,7 @@ export function getFallbackReply({ text, orderState = { items: [] }, isInterrupt
       `No problem at all — changed to ${itemsDesc}. Can I get you anything else?`
     ];
     const reply = interruptVariations[Math.floor(Math.random() * interruptVariations.length)];
-    return { reply, orderState: updatedState };
+    return { reply, orderState: { items: updatedState.items, confirmed: updatedState.confirmed } };
   }
 
   const normalVariations = [
@@ -325,7 +363,7 @@ export function getFallbackReply({ text, orderState = { items: [] }, isInterrupt
     `Right away, one ${itemsDesc} coming up!`
   ];
   const reply = normalVariations[Math.floor(Math.random() * normalVariations.length)];
-  return { reply, orderState: updatedState };
+  return { reply, orderState: { items: updatedState.items, confirmed: updatedState.confirmed } };
 }
 
 export async function streamFallbackReply({ text, orderState, isInterruption, onToken }) {
