@@ -87,8 +87,18 @@ app.post('/api/pipeline', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders?.();
 
+  let clientDisconnected = false;
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      clientDisconnected = true;
+    }
+  });
+
   const sendEvent = (event, data) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if (clientDisconnected || res.writableEnded || req.socket?.destroyed) return;
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch (_) {}
   };
 
   try {
@@ -99,13 +109,18 @@ app.post('/api/pipeline', async (req, res) => {
       isInterruption,
       forceFallback,
       clientT0: t0,
+      isCancelled: () => clientDisconnected,
       onEvent: (evt, data) => sendEvent(evt, data)
     });
-    res.end();
+    if (!clientDisconnected && !res.writableEnded) {
+      res.end();
+    }
   } catch (err) {
-    console.error('[FastLane Pipeline Error]', err);
-    sendEvent('error', { message: err.message });
-    res.end();
+    if (!clientDisconnected) {
+      console.error('[FastLane Pipeline Error]', err);
+      sendEvent('error', { message: err.message });
+      res.end();
+    }
   }
 });
 

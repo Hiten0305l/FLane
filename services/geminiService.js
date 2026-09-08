@@ -252,7 +252,7 @@ function updateOrderStateHeuristic(currentOrderState, userText, isInterruption) 
   // 1. Explicit Replacement / Substitution handling:
   // e.g. "replace the fries with nuggets", "substitute the fries for a burger", "change fries to nuggets", "swap the fries with nuggets", "instead of fries, give me nuggets"
   const replaceMatch = lower.match(/(?:replace|substitute|switch|change|swap)\s+(?:the\s+)?(.+?)\s+(?:with|for|to)\s+(?:a\s+|an\s+|the\s+)?(.+)/i)
-    || lower.match(/instead of\s+(?:the\s+)?(.+?)(?:,\s*|\s+)(?:give me|get me|i'll have|i want|make it|make that)?\s*(?:a\s+|an\s+|the\s+)?(.+)/i);
+    || lower.match(/instead of\s+(?:the\s+)?(.+?)(?:,\s*|\s+)(?:add|give me|get me|i'll have|i want|make it|make that)?\s*(?:a\s+|an\s+|the\s+)?(.+)/i);
 
   if (replaceMatch) {
     const oldQuery = replaceMatch[1].trim().replace(/\b(please|thanks)\b/gi, '').trim();

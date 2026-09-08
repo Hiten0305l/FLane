@@ -152,13 +152,15 @@ document.addEventListener('DOMContentLoaded', () => {
   let vadInterval = null;
   let sustainedSpeechCount = 0;
   let audioPlaybackStartTime = 0;
+  let isFirstPlaybackChunk = true;
+  let currentPipelineAbortController = null;
   let isListeningForCorrection = false;
   let correctionSilenceTimer = null;
   let correctionMaxTimer = null;
   let wasBotPlayingWhenRecorded = false;
   let wasInterrupted = false;
-  const SPEECH_ENERGY_THRESHOLD = 0.08; // Voice energy threshold calibrated to ignore speaker feedback
-  const REQUIRED_SUSTAINED_TICKS = 6;   // 6 ticks @ 30ms = ~180ms sustained intentional speech
+  const SPEECH_ENERGY_THRESHOLD = 0.028; // Calibrated for natural conversational speech
+  const REQUIRED_SUSTAINED_TICKS = 4;   // 4 ticks @ 30ms = ~120ms sustained speech
 
   // Real trial history persisted in localStorage, initialized empty
   let trialHistory = [];
@@ -465,7 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lower = userText.toLowerCase().trim();
 
     const replaceMatch = lower.match(/(?:replace|substitute|switch|change|swap)\s+(?:the\s+)?(.+?)\s+(?:with|for|to)\s+(?:a\s+|an\s+|the\s+)?(.+)/i)
-      || lower.match(/instead of\s+(?:the\s+)?(.+?)(?:,\s*|\s+)(?:give me|get me|i'll have|i want|make it|make that)?\s*(?:a\s+|an\s+|the\s+)?(.+)/i);
+      || lower.match(/instead of\s+(?:the\s+)?(.+?)(?:,\s*|\s+)(?:add|give me|get me|i'll have|i want|make it|make that)?\s*(?:a\s+|an\s+|the\s+)?(.+)/i);
 
     if (replaceMatch) {
       const oldQuery = replaceMatch[1].trim().replace(/\b(please|thanks)\b/gi, '').trim();
@@ -756,6 +758,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function ensureRecognitionListening() {
+    if (!recognition || isRecording) return;
+    try {
+      recognition.start();
+    } catch (_) {
+      // Recognition is already running
+    }
+  }
+
   function startVadMonitoring() {
     if (vadInterval) clearInterval(vadInterval);
     sustainedSpeechCount = 0;
@@ -777,8 +788,8 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        // Grace period: ignore first 600ms of audio playback so speaker transients / initial playback won't trigger self-interruption
-        if (Date.now() - audioPlaybackStartTime < 600) {
+        // Grace period: ignore first 150ms ONLY on the first chunk of a turn to bypass initial speaker transient
+        if (isFirstPlaybackChunk && (Date.now() - audioPlaybackStartTime < 150)) {
           sustainedSpeechCount = 0;
           return;
         }
@@ -821,20 +832,31 @@ document.addEventListener('DOMContentLoaded', () => {
   function triggerInterruption({ simulated = false, correction = null }) {
     console.log(`[FastLane Interruption] Handling interrupt (simulated: ${simulated})...`);
 
-    // Step 2a: Immediately stop/mute the currently playing Rime audio
+    // Step 2a: Abort pending client-to-server SSE pipeline request immediately
+    if (currentPipelineAbortController) {
+      try { currentPipelineAbortController.abort(); } catch (_) {}
+      currentPipelineAbortController = null;
+    }
+
+    // Step 2b: Immediately stop and unbind currently playing Rime audio
     if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
+      currentAudio.onplay = null;
+      currentAudio.onended = null;
+      currentAudio.onerror = null;
+      try {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      } catch (_) {}
       currentAudio = null;
     }
     isPlayingAudio = false;
     stopVadMonitoring();
     if (soundwave) soundwave.style.display = 'none';
 
-    // Step 2b: Cancel all remaining queued/not-yet-played sentence chunks
+    // Step 2c: Cancel all remaining queued sentence chunks
     audioQueue = [];
 
-    // Step 2c: Invalidate the previous LLM generation turn so incoming chunks are discarded
+    // Step 2d: Invalidate the previous LLM generation turn so any incoming chunks are discarded
     activeTurnId = ++turnCounter;
     wasInterrupted = true;
 
@@ -845,9 +867,9 @@ document.addEventListener('DOMContentLoaded', () => {
     timerStatusChip.className = 'status-chip measuring';
     timerStatusChip.textContent = 'Interrupted';
 
-    // Step 2d: Switch into capturing the user's new speech
+    // Step 2e: Switch into capturing the user's new speech
     if (simulated) {
-      const correctionText = correction || "Just give me the Margherita";
+      const correctionText = correction || "Instead of pizza, add shake.";
       userTranscript.textContent = correctionText;
       userTranscript.classList.remove('placeholder');
       if (userTime) userTime.textContent = formatTimeNow();
@@ -866,26 +888,21 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(correctionMaxTimer);
 
     isListeningForCorrection = true;
-    recordedTranscript = '';
 
     pttLabel.textContent = 'Listening to your correction... (Tap mic or speak)';
     pttButton.classList.add('recording');
-    userTranscript.textContent = 'Listening to your correction...';
-    userTranscript.classList.add('placeholder');
-
-    if (recognition) {
-      try { recognition.abort(); } catch (_) {}
-      setTimeout(() => {
-        if (!isListeningForCorrection) return;
-        try {
-          recognition.start();
-        } catch (err) {
-          console.warn('[FastLane Speech] Interruption recognition start error:', err.message);
-        }
-      }, 50);
+    const existingTranscript = (recordedTranscript || '').trim();
+    userTranscript.textContent = existingTranscript || 'Listening to your correction...';
+    if (!existingTranscript) {
+      userTranscript.classList.add('placeholder');
+    } else {
+      userTranscript.classList.remove('placeholder');
     }
 
-    // Safety timeout: if after 6.5s no words are transcribed, do NOT send a fake order!
+    // Ensure recognition is actively listening without aborting or wiping in-flight text
+    ensureRecognitionListening();
+
+    // Safety timeout: if after 6.5s no words are transcribed, finalize
     correctionMaxTimer = setTimeout(() => {
       if (!isListeningForCorrection) return;
       finalizeInterruptionCapture();
@@ -938,12 +955,12 @@ document.addEventListener('DOMContentLoaded', () => {
       // Audio is actively playing or ready -> interrupt it right now!
       triggerInterruption({
         simulated: true,
-        correction: "Just give me the Margherita"
+        correction: "Instead of pizza, add shake."
       });
     } else {
-      // Idle demo: kick off initial order "I want a large pizza", and interrupt it mid-speech!
+      // Idle demo: kick off initial order "I want to order pizza and pasta.", and interrupt it mid-speech!
       console.log('[FastLane Demo] Starting turn 1 for interruption simulation...');
-      runTurn("I want a large pizza", true, false);
+      runTurn("I want to order pizza and pasta.", true, false);
 
       // Trigger the interruption 1.5s in, exactly when bot starts speaking
       const checkAudioInterval = setInterval(() => {
@@ -952,7 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
           setTimeout(() => {
             triggerInterruption({
               simulated: true,
-              correction: "Just give me the Margherita"
+              correction: "Instead of pizza, add shake."
             });
           }, 400);
         }
@@ -964,7 +981,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isPlayingAudio) {
           triggerInterruption({
             simulated: true,
-            correction: "Just give me the Margherita"
+            correction: "Instead of pizza, add shake."
           });
         }
       }, 4000);
@@ -1195,12 +1212,18 @@ document.addEventListener('DOMContentLoaded', () => {
         userTranscript.textContent = fullText;
         userTranscript.classList.remove('placeholder');
 
-        // If in hands-free interruption capture mode, reset silence timeout to 1.3 seconds after speech
+        // If bot is playing and user speech is detected, trigger immediate interruption
+        if (isPlayingAudio && !isListeningForCorrection) {
+          console.log('[FastLane Speech] Speech detected during playback — triggering interruption');
+          triggerInterruption({ simulated: false });
+        }
+
+        // If in hands-free interruption capture mode, reset silence timeout to 1.1 seconds after speech
         if (isListeningForCorrection) {
           clearTimeout(correctionSilenceTimer);
           correctionSilenceTimer = setTimeout(() => {
             finalizeInterruptionCapture();
-          }, 1300);
+          }, 1100);
         }
       }
     };
@@ -1224,6 +1247,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     isRecording = true;
     recordedTranscript = '';
+    activeTurnId = ++turnCounter;
+    initAudioContext().catch(() => {});
     stopAudioPlayback();
 
     transitionState(PipelineState.RECORDING);
@@ -1314,6 +1339,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (userTime) userTime.textContent = formatTimeNow();
 
       runTurn(orderText, false, isInterruptionTurn);
+      setTimeout(() => {
+        ensureRecognitionListening();
+      }, 350);
     }
 
     // Hook recognition.onend to finalize as soon as recognition engine flushes results
@@ -1332,6 +1360,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── 7. Tap-to-Toggle Speech Input Handling ───
   let lastToggleTime = 0;
   function handleMicToggle(e) {
+    initAudioContext().catch(() => {});
     if (e) {
       if (typeof e.preventDefault === 'function' && e.cancelable && e.type === 'touchend') {
         e.preventDefault();
@@ -1546,9 +1575,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── 9. Audio Playback Queue with Continuous VAD Interruption Listening ───
   function stopAudioPlayback() {
+    if (currentPipelineAbortController) {
+      try { currentPipelineAbortController.abort(); } catch (_) {}
+      currentPipelineAbortController = null;
+    }
     audioQueue = [];
     if (currentAudio) {
-      currentAudio.pause();
+      currentAudio.onplay = null;
+      currentAudio.onended = null;
+      currentAudio.onerror = null;
+      try {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      } catch (_) {}
       currentAudio = null;
     }
     isPlayingAudio = false;
@@ -1605,11 +1644,15 @@ document.addEventListener('DOMContentLoaded', () => {
       audioPlaybackStartTime = Date.now();
       if (item.isFirst && !item.isNotification) {
         transitionState(PipelineState.FIRST_AUDIO, { audioStartedPlaying: true });
+        isFirstPlaybackChunk = true;
+      } else {
+        isFirstPlaybackChunk = false;
       }
       if (soundwave) soundwave.style.display = 'inline-flex';
 
       // Start monitoring microphone for interruptions ONLY during normal order playback, never during notifications
       if (!item.isNotification) {
+        ensureRecognitionListening();
         startVadMonitoring();
       }
     };
@@ -1628,14 +1671,21 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     audio.play().catch(e => {
+      if (e.name === 'AbortError' || !isPlayingAudio) {
+        // Interrupted or paused intentionally: do not restart audio or VAD!
+        return;
+      }
       console.warn('[FastLane] Audio autoplay prevented or delayed:', e);
       if (item.isFirst && !item.isNotification) {
         transitionState(PipelineState.FIRST_AUDIO, { audioStartedPlaying: true });
       }
-      if (!item.isNotification) {
+      if (!item.isNotification && isPlayingAudio) {
+        ensureRecognitionListening();
         startVadMonitoring();
       }
-      playNextAudio();
+      if (isPlayingAudio) {
+        playNextAudio();
+      }
     });
   }
 
@@ -1658,9 +1708,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let fullReplyAccumulator = '';
 
+    if (currentPipelineAbortController) {
+      try { currentPipelineAbortController.abort(); } catch (_) {}
+    }
+    currentPipelineAbortController = new AbortController();
+
     try {
       const response = await fetch('/api/pipeline', {
         method: 'POST',
+        signal: currentPipelineAbortController.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text,
@@ -1814,6 +1870,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
     } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log(`[FastLane Pipeline] Turn ${thisTurnId} fetch aborted due to interruption`);
+        return;
+      }
       if (activeTurnId === thisTurnId) {
         console.error('[FastLane Turn Error]:', err);
         botTranscript.textContent = `Connection error: ${err.message}`;

@@ -13,6 +13,7 @@ export async function runPipeline({
   isInterruption = false,
   forceFallback = false,
   clientT0 = null,
+  isCancelled = null,
   onEvent
 }) {
   const t0 = clientT0 || Date.now();
@@ -23,13 +24,13 @@ export async function runPipeline({
   onEvent('mode', { mode: activeMode, voice: voiceInfo.speaker, model: voiceInfo.modelId });
 
   if (activeMode === 'streamed') {
-    return await executeStreamedPipeline({ text, orderState, isInterruption, voiceInfo, t0, forceFallback, onEvent });
+    return await executeStreamedPipeline({ text, orderState, isInterruption, voiceInfo, t0, forceFallback, isCancelled, onEvent });
   } else {
-    return await executeNaivePipeline({ text, orderState, isInterruption, voiceInfo, t0, onEvent, fallbackTriggered: false });
+    return await executeNaivePipeline({ text, orderState, isInterruption, voiceInfo, t0, onEvent, fallbackTriggered: false, isCancelled });
   }
 }
 
-async function executeStreamedPipeline({ text, orderState, isInterruption, voiceInfo, t0, forceFallback, onEvent }) {
+async function executeStreamedPipeline({ text, orderState, isInterruption, voiceInfo, t0, forceFallback, isCancelled, onEvent }) {
   let firstAudioSent = false;
   let t1 = null;
   let fullReplyText = '';
@@ -43,6 +44,7 @@ async function executeStreamedPipeline({ text, orderState, isInterruption, voice
   let synthChain = Promise.resolve();
 
   const parser = new SentenceParser((sentence, idx) => {
+    if (isCancelled && isCancelled()) return;
     const isFirst = idx === 1;
     const forceThisFail = forceFallback && isFirst;
 
@@ -55,7 +57,7 @@ async function executeStreamedPipeline({ text, orderState, isInterruption, voice
 
     // Begin synthesis immediately as sentence is parsed, chained sequentially so audio chunks arrive in order
     synthChain = synthChain.then(async () => {
-      if (streamFailureError) return;
+      if (streamFailureError || (isCancelled && isCancelled())) return;
 
       const tSynthStart = Date.now();
       const audioBuffer = await synthesizeAudio({
@@ -66,6 +68,8 @@ async function executeStreamedPipeline({ text, orderState, isInterruption, voice
         timeoutMs: 10000,
         forceFail: forceThisFail
       });
+
+      if (isCancelled && isCancelled()) return;
 
       if (!firstAudioSent) {
         firstAudioSent = true;
@@ -84,6 +88,7 @@ async function executeStreamedPipeline({ text, orderState, isInterruption, voice
         format: 'audio/mpeg'
       });
     }).catch(err => {
+      if (isCancelled && isCancelled()) return;
       console.warn(`[FastLane Pipeline] Sentence #${idx} synthesis error: ${err.message}`);
       streamFailureError = err;
     });
@@ -95,6 +100,7 @@ async function executeStreamedPipeline({ text, orderState, isInterruption, voice
       orderState,
       isInterruption,
       onToken: (token) => {
+        if (isCancelled && isCancelled()) return;
         onEvent('llm_token', { token });
         parser.addChunk(token);
       }
@@ -103,6 +109,7 @@ async function executeStreamedPipeline({ text, orderState, isInterruption, voice
     fullReplyText = result.reply;
     updatedOrderState = result.orderState;
   } catch (err) {
+    if (isCancelled && isCancelled()) return;
     streamFailureError = err;
   }
 
@@ -113,12 +120,12 @@ async function executeStreamedPipeline({ text, orderState, isInterruption, voice
       onEvent('stage', { stage: 'gemini', label: 'Gemini → first text', durationMs: geminiFirstTextMs });
     }
 
-    // Wait for all sentence audio synthesis to complete
-    await synthChain;
-
-    // Emit structured order state event upon LLM completion
+    // Emit structured order state event upon LLM completion immediately
     onEvent('order_state', updatedOrderState);
     onEvent('llm_complete', { text: fullReplyText, orderState: updatedOrderState });
+
+    // Wait for all sentence audio synthesis to complete
+    await synthChain;
   }
 
   if (streamFailureError) {
