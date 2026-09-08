@@ -868,7 +868,7 @@ document.addEventListener('DOMContentLoaded', () => {
     isListeningForCorrection = true;
     recordedTranscript = '';
 
-    pttLabel.textContent = 'Listening to your correction... (Hold button or speak)';
+    pttLabel.textContent = 'Listening to your correction... (Tap mic or speak)';
     pttButton.classList.add('recording');
     userTranscript.textContent = 'Listening to your correction...';
     userTranscript.classList.add('placeholder');
@@ -899,7 +899,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(correctionMaxTimer);
 
     pttButton.classList.remove('recording');
-    pttLabel.textContent = 'Hold to talk';
+    pttLabel.textContent = 'Tap to Speak';
 
     if (recognition) {
       try { recognition.stop(); } catch (_) {}
@@ -917,7 +917,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Real speech wasn't transcribed: do NOT inject a fake order!
       userTranscript.textContent = "Didn't catch that.";
       userTranscript.classList.remove('placeholder');
-      botTranscript.textContent = "I stopped for you — hold the button or type below to tell me what to change.";
+      botTranscript.textContent = "I stopped for you — tap the mic or type below to tell me what to change.";
       botTranscript.classList.remove('placeholder');
       timerStatusChip.className = 'status-chip ready';
       timerStatusChip.textContent = 'Ready';
@@ -989,7 +989,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resetTimingStages();
 
         pttButton.classList.add('recording');
-        pttLabel.textContent = 'Listening... Release to order';
+        pttLabel.textContent = 'Listening… Tap to Stop';
         timerStatusChip.className = 'status-chip measuring';
         timerStatusChip.textContent = 'Listening';
 
@@ -1249,7 +1249,7 @@ document.addEventListener('DOMContentLoaded', () => {
     isRecording = false;
 
     pttButton.classList.remove('recording');
-    pttLabel.textContent = 'Hold to talk';
+    pttLabel.textContent = 'Tap to Speak';
 
     if (recognition) {
       try {
@@ -1276,7 +1276,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isInterruptionTurn) {
           userTranscript.textContent = "Didn't catch that.";
           userTranscript.classList.remove('placeholder');
-          botTranscript.textContent = "I'm listening — please hold to talk or type your correction below.";
+          botTranscript.textContent = "I'm listening — please tap the mic or type your correction below.";
           botTranscript.classList.remove('placeholder');
           timerStatusChip.className = 'status-chip ready';
           timerStatusChip.textContent = 'Ready';
@@ -1329,50 +1329,43 @@ document.addEventListener('DOMContentLoaded', () => {
     const safetyTimeout = setTimeout(finalize, waitDelay);
   }
 
-  // Pointer & Touch Events with pointer capture to guarantee release detection
-  let pttPressTime = 0;
+  // ─── 7. Tap-to-Toggle Speech Input Handling ───
+  let lastToggleTime = 0;
+  function handleMicToggle(e) {
+    if (e) {
+      if (typeof e.preventDefault === 'function' && e.cancelable && e.type === 'touchend') {
+        e.preventDefault();
+      }
+    }
+    const now = Date.now();
+    // Deduplicate touch/click events and rapid accidental double-taps (< 350ms)
+    if (now - lastToggleTime < 350) {
+      return;
+    }
+    lastToggleTime = now;
+
+    if (isRecording || isListeningForCorrection) {
+      if (isListeningForCorrection) {
+        finalizeInterruptionCapture();
+      } else {
+        stopRecording();
+      }
+    } else {
+      startRecording();
+    }
+  }
+
   function attachPttEvents(btn) {
     if (!btn) return;
-    btn.addEventListener('pointerdown', (e) => {
-      try {
-        btn.setPointerCapture(e.pointerId);
-      } catch (_) {}
-      pttPressTime = Date.now();
-      startRecording();
-    });
-
-    btn.addEventListener('pointerup', (e) => {
-      try {
-        btn.releasePointerCapture(e.pointerId);
-      } catch (_) {}
-      const holdDuration = Date.now() - pttPressTime;
-      // If user quickly tapped (< 700ms), let recognition continue for at least 1.2s so speech isn't cut off immediately
-      if (holdDuration < 700) {
-        setTimeout(() => {
-          if (isRecording) stopRecording();
-        }, 1200 - holdDuration);
-      } else {
-        if (isRecording) stopRecording();
-      }
-    });
-
-    btn.addEventListener('pointercancel', () => {
-      if (isRecording) stopRecording();
-    });
+    btn.addEventListener('click', handleMicToggle);
+    // Prevent mobile Safari native long-press callouts, context menu, selection, and drag
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    btn.addEventListener('selectstart', (e) => e.preventDefault());
+    btn.addEventListener('dragstart', (e) => e.preventDefault());
   }
 
   attachPttEvents(pttButton);
   attachPttEvents(pttButtonUser);
-
-  window.addEventListener('pointerup', () => {
-    if (isRecording) stopRecording();
-  });
-  window.addEventListener('mouseup', () => {
-    if (isRecording) stopRecording();
-  });
-  window.addEventListener('touchend', () => {
-    if (isRecording) stopRecording();
-  });
 
   // ─── 8. Quick Chips & Manual Input (Both Views) ───
   quickChips.forEach(chip => {
@@ -1512,12 +1505,16 @@ document.addEventListener('DOMContentLoaded', () => {
         pttButtonUser.classList.add('recording');
         if (rippleOuter) rippleOuter.classList.add('recording');
         if (rippleMiddle) rippleMiddle.classList.add('recording');
-        if (pttUserLabel) pttUserLabel.textContent = 'Listening... Release to order';
+        if (pttUserLabel) pttUserLabel.textContent = 'Listening… Tap to Stop';
+        pttButtonUser.setAttribute('aria-label', 'Listening… Tap to Stop');
+        pttButton.setAttribute('aria-label', 'Listening… Tap to Stop');
       } else {
         pttButtonUser.classList.remove('recording');
         if (rippleOuter) rippleOuter.classList.remove('recording');
         if (rippleMiddle) rippleMiddle.classList.remove('recording');
-        if (pttUserLabel) pttUserLabel.textContent = 'Tap and hold to speak';
+        if (pttUserLabel) pttUserLabel.textContent = 'Tap to Speak';
+        pttButtonUser.setAttribute('aria-label', 'Tap to Speak');
+        pttButton.setAttribute('aria-label', 'Tap to Speak');
       }
     });
     pttObserver.observe(pttButton, { attributes: true, attributeFilter: ['class'] });
@@ -2069,7 +2066,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (recentOrdersList) {
         recentOrdersList.innerHTML = `
           <div style="text-align: center; padding: 22px 14px; color: #71717a; font-size: 12px;">
-            No voice orders recorded yet. Hold to talk or choose a quick test phrase above.
+            No voice orders recorded yet. Tap to speak or choose a quick test phrase above.
           </div>
         `;
       }
