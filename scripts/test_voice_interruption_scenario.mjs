@@ -251,7 +251,16 @@ async function run() {
       })()
     `);
 
-    await sleep(2500); // Wait for bot to begin speaking
+    // Wait for the new turn to update order to Pizza and Pasta
+    for (let w = 0; w < 30; w++) {
+      await sleep(300);
+      const items = await getOrderItems();
+      if (items.some(it => it.toLowerCase().includes('pizza')) && items.some(it => it.toLowerCase().includes('pasta'))) {
+        break;
+      }
+    }
+
+    await sleep(500);
 
     // Interrupt mid-stream
     await evaluate(`
@@ -274,7 +283,8 @@ async function run() {
     }
 
     if (!repSuccess) {
-      console.error(`❌ FAIL on repetition #${rep}`);
+      const finalRepItems = await getOrderItems();
+      console.error(`❌ FAIL on repetition #${rep}, current items:`, finalRepItems);
       ws.close();
       chromeProcess.kill();
       process.exit(1);

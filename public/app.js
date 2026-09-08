@@ -140,6 +140,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let audioQueue = [];
   let isPlayingAudio = false;
   let currentAudio = null;
+  let persistentAudio = null;
+  let persistentAudioUnlocked = false;
 
   const DONUT_CIRCUMFERENCE = 427; // 2 * PI * 68
   let latestStreamedLatency = null;
@@ -155,12 +157,30 @@ document.addEventListener('DOMContentLoaded', () => {
   let isFirstPlaybackChunk = true;
   let currentPipelineAbortController = null;
   let isListeningForCorrection = false;
+  let currentCorrectionSessionId = 0;
+  let interruptionResultIndex = 0;
+  let correctionCommittedText = '';
+  let recognitionResultCount = 0;
+  let isRecognitionActive = false;
+  let pendingNormalRecordingTurnId = null;
+  let normalRecordingSafetyTimer = null;
   let correctionSilenceTimer = null;
   let correctionMaxTimer = null;
   let wasBotPlayingWhenRecorded = false;
   let wasInterrupted = false;
-  const SPEECH_ENERGY_THRESHOLD = 0.028; // Calibrated for natural conversational speech
+  const SPEECH_ENERGY_THRESHOLD = 0.055; // Calibrated to ignore speaker bleed while detecting natural conversational speech
   const REQUIRED_SUSTAINED_TICKS = 4;   // 4 ticks @ 30ms = ~120ms sustained speech
+
+  // VAD lifecycle token to guard asynchronous initialization callbacks
+  let currentVadMonitorToken = 0;
+  let lastVadRms = 0;
+  let vadSampleRing = [];
+  let currentAudioTurnId = null;
+  let lastAudioChunkStartTime = 0;
+  let lastRecognitionResultText = '';
+  let lastRecognitionEventType = 'none';
+  let lastRecognitionTimestamp = 0;
+  let recognitionStartedTurnId = 0;
 
   // Real trial history persisted in localStorage, initialized empty
   let trialHistory = [];
@@ -758,17 +778,53 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function unlockPersistentAudio() {
+    if (!persistentAudio) {
+      persistentAudio = new Audio();
+      persistentAudio.preload = 'auto';
+      persistentAudio.setAttribute('playsinline', 'true');
+      persistentAudio.setAttribute('webkit-playsinline', 'true');
+    }
+    if (!persistentAudioUnlocked) {
+      // 1-sample silent WAV data URI to unlock mobile browser media playback during user gesture
+      persistentAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+      const p = persistentAudio.play();
+      if (p !== undefined) {
+        p.then(() => {
+          persistentAudio.pause();
+          persistentAudio.currentTime = 0;
+          persistentAudioUnlocked = true;
+          console.log('[FastLane Audio] Persistent HTMLAudioElement unlocked for hands-free playback');
+        }).catch(err => {
+          console.warn('[FastLane Audio] Persistent audio unlock notice:', err.message);
+        });
+      }
+    }
+  }
+
   function ensureRecognitionListening() {
-    if (!recognition || isRecording) return;
+    if (!recognition || isRecording || isRecognitionActive) return;
     try {
       recognition.start();
-    } catch (_) {
-      // Recognition is already running
+    } catch (e) {
+      if (e && e.name === 'InvalidStateError') {
+        isRecognitionActive = true;
+        return;
+      }
+      setTimeout(() => {
+        if (!recognition || isRecording || isRecognitionActive) return;
+        try { recognition.start(); } catch (_) {}
+      }, 40);
     }
   }
 
   function startVadMonitoring() {
-    if (vadInterval) clearInterval(vadInterval);
+    const monitorToken = ++currentVadMonitorToken;
+
+    if (vadInterval) {
+      clearInterval(vadInterval);
+      vadInterval = null;
+    }
     sustainedSpeechCount = 0;
 
     // Display "Listening for interruption..." indicator while audio is playing
@@ -777,19 +833,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     initAudioContext().then(() => {
+      // Guard: if monitor was stopped or invalidated while initAudioContext was pending, abort!
+      if (monitorToken !== currentVadMonitorToken || !isPlayingAudio) {
+        return;
+      }
       if (!analyserNode) return;
 
       const bufferLength = analyserNode.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
+      let vadTickCount = 0;
 
       vadInterval = setInterval(() => {
-        if (!isPlayingAudio) {
+        if (monitorToken !== currentVadMonitorToken || !isPlayingAudio) {
           stopVadMonitoring();
           return;
         }
 
-        // Grace period: ignore first 150ms ONLY on the first chunk of a turn to bypass initial speaker transient
-        if (isFirstPlaybackChunk && (Date.now() - audioPlaybackStartTime < 150)) {
+        const elapsedSinceStart = Date.now() - audioPlaybackStartTime;
+
+        // Grace period: ignore first 300ms ONLY on the first chunk of a turn to bypass initial speaker transient
+        if (isFirstPlaybackChunk && (elapsedSinceStart < 300)) {
           sustainedSpeechCount = 0;
           return;
         }
@@ -803,12 +866,39 @@ document.addEventListener('DOMContentLoaded', () => {
           sum += norm * norm;
         }
         const rms = Math.sqrt(sum / bufferLength);
+        lastVadRms = rms;
+
+        const tickData = {
+          time: Date.now(),
+          rms: Number(rms.toFixed(5)),
+          threshold: SPEECH_ENERGY_THRESHOLD,
+          sustained: sustainedSpeechCount,
+          elapsed: elapsedSinceStart,
+          isFirstChunk: isFirstPlaybackChunk,
+          audioTurnId: currentAudioTurnId || activeTurnId,
+          activeTurnId: activeTurnId,
+          monitorToken: monitorToken
+        };
+        vadSampleRing.push(tickData);
+        if (vadSampleRing.length > 100) vadSampleRing.shift();
+
+        // Sampled diagnostic log every ~300ms (10 ticks) to observe RMS levels
+        if (vadTickCount++ % 10 === 0) {
+          console.log(`[FastLane VAD Metric] RMS: ${rms.toFixed(4)}, threshold: ${SPEECH_ENERGY_THRESHOLD}, sustained: ${sustainedSpeechCount}, token: ${monitorToken}`);
+        }
 
         if (rms > SPEECH_ENERGY_THRESHOLD) {
           sustainedSpeechCount++;
           if (sustainedSpeechCount >= REQUIRED_SUSTAINED_TICKS) {
             console.log(`[FastLane VAD] Interruption detected! (rms: ${rms.toFixed(3)}, ticks: ${sustainedSpeechCount})`);
-            triggerInterruption({ simulated: false });
+            let source = 'VAD';
+            if (!isPlayingAudio) source = 'STALE_VAD';
+            else if (currentAudioTurnId && currentAudioTurnId !== activeTurnId) source = 'TURN_RACE';
+            triggerInterruption({
+              simulated: false,
+              triggerSource: source,
+              reason: `VAD energy ${rms.toFixed(4)} exceeded ${SPEECH_ENERGY_THRESHOLD} for ${sustainedSpeechCount} ticks`
+            });
           }
         } else {
           sustainedSpeechCount = Math.max(0, sustainedSpeechCount - 1);
@@ -818,6 +908,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function stopVadMonitoring() {
+    currentVadMonitorToken++; // Invalidate any pending initAudioContext callback or active interval
     if (vadInterval) {
       clearInterval(vadInterval);
       vadInterval = null;
@@ -829,8 +920,32 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ─── 4. Interruption Trigger & Recovery Handler ───
-  function triggerInterruption({ simulated = false, correction = null }) {
-    console.log(`[FastLane Interruption] Handling interrupt (simulated: ${simulated})...`);
+  function triggerInterruption({ simulated = false, correction = null, triggerSource = 'UNKNOWN', reason = '' }) {
+    console.log(`[FastLane Interruption] Handling interrupt (simulated: ${simulated}, source: ${triggerSource})...`);
+
+    const diagnosticBlock = {
+      timestamp: new Date().toISOString(),
+      reason: reason || (simulated ? 'Simulated trigger' : 'Unspecified trigger'),
+      trigger_source: triggerSource,
+      activeTurnId: activeTurnId,
+      audioTurnId: currentAudioTurnId || activeTurnId,
+      isPlayingAudio: isPlayingAudio,
+      audioQueueLength: audioQueue ? audioQueue.length : 0,
+      currentAudioExists: !!currentAudio,
+      recognitionState: recognition ? (isRecording ? 'recording' : (isListeningForCorrection ? 'listening_for_correction' : 'listening_continuous')) : 'inactive',
+      sustainedSpeechCount: sustainedSpeechCount,
+      vadEnergy: Number(lastVadRms.toFixed(5)),
+      vadThreshold: SPEECH_ENERGY_THRESHOLD,
+      elapsedSincePlaybackStart: audioPlaybackStartTime ? (Date.now() - audioPlaybackStartTime) : 0,
+      elapsedSinceLastAudioChunk: lastAudioChunkStartTime ? (Date.now() - lastAudioChunkStartTime) : 0,
+      currentTranscript: recordedTranscript || (userTranscript ? userTranscript.textContent : ''),
+      lastRecognitionResult: lastRecognitionResultText,
+      lastRecognitionEvent: lastRecognitionEventType,
+      vadMonitoringActive: !!vadInterval
+    };
+
+    console.log('INTERRUPTION_DIAGNOSTIC ' + JSON.stringify(diagnosticBlock, null, 2));
+    console.log('[FastLane VAD Window (samples)]\n' + JSON.stringify(vadSampleRing.slice(-40), null, 2));
 
     // Step 2a: Abort pending client-to-server SSE pipeline request immediately
     if (currentPipelineAbortController) {
@@ -860,6 +975,10 @@ document.addEventListener('DOMContentLoaded', () => {
     activeTurnId = ++turnCounter;
     wasInterrupted = true;
 
+    // Discard any pending normal recording finalization from previous turn
+    pendingNormalRecordingTurnId = null;
+    clearTimeout(normalRecordingSafetyTimer);
+
     // Update UI to show the cut-off state cleanly
     if (botTranscript && !botTranscript.textContent.includes('[Interrupted]')) {
       botTranscript.textContent = (botTranscript.textContent.replace(/ \.\.\.$/, '') + ' — [Interrupted]').trim();
@@ -886,31 +1005,37 @@ document.addEventListener('DOMContentLoaded', () => {
   function startInterruptionSpeechCapture() {
     clearTimeout(correctionSilenceTimer);
     clearTimeout(correctionMaxTimer);
+    clearTimeout(normalRecordingSafetyTimer);
+    pendingNormalRecordingTurnId = null;
 
     isListeningForCorrection = true;
+    currentCorrectionSessionId++;
+    const thisSessionId = currentCorrectionSessionId;
+
+    // Establish clean interruption transcript baseline
+    correctionCommittedText = '';
+    recordedTranscript = '';
+    interruptionResultIndex = recognitionResultCount;
 
     pttLabel.textContent = 'Listening to your correction... (Tap mic or speak)';
     pttButton.classList.add('recording');
-    const existingTranscript = (recordedTranscript || '').trim();
-    userTranscript.textContent = existingTranscript || 'Listening to your correction...';
-    if (!existingTranscript) {
-      userTranscript.classList.add('placeholder');
-    } else {
-      userTranscript.classList.remove('placeholder');
-    }
+    userTranscript.textContent = 'Listening to your correction...';
+    userTranscript.classList.add('placeholder');
 
     // Ensure recognition is actively listening without aborting or wiping in-flight text
     ensureRecognitionListening();
 
     // Safety timeout: if after 6.5s no words are transcribed, finalize
     correctionMaxTimer = setTimeout(() => {
-      if (!isListeningForCorrection) return;
-      finalizeInterruptionCapture();
+      if (!isListeningForCorrection || currentCorrectionSessionId !== thisSessionId) return;
+      finalizeInterruptionCapture(thisSessionId);
     }, 6500);
   }
 
-  function finalizeInterruptionCapture() {
+  function finalizeInterruptionCapture(sessionId) {
     if (!isListeningForCorrection) return;
+    if (sessionId !== undefined && sessionId !== currentCorrectionSessionId) return;
+
     isListeningForCorrection = false;
     clearTimeout(correctionSilenceTimer);
     clearTimeout(correctionMaxTimer);
@@ -922,14 +1047,14 @@ document.addEventListener('DOMContentLoaded', () => {
       try { recognition.stop(); } catch (_) {}
     }
 
-    const correctionText = recordedTranscript.trim();
+    const fullCorrection = (correctionCommittedText + ' ' + (recordedTranscript || '')).trim();
     wasInterrupted = false;
 
-    if (correctionText) {
-      userTranscript.textContent = correctionText;
+    if (fullCorrection) {
+      userTranscript.textContent = fullCorrection;
       userTranscript.classList.remove('placeholder');
       if (userTime) userTime.textContent = formatTimeNow();
-      runTurn(correctionText, false, true);
+      runTurn(fullCorrection, false, true);
     } else {
       // Real speech wasn't transcribed: do NOT inject a fake order!
       userTranscript.textContent = "Didn't catch that.";
@@ -951,7 +1076,7 @@ document.addEventListener('DOMContentLoaded', () => {
       simulateInterruptBtn.style.background = '';
     }, 600);
 
-    if (isPlayingAudio || currentState === PipelineState.FIRST_AUDIO || currentState === PipelineState.RIME_GENERATING) {
+    if (isPlayingAudio || audioQueue.length > 0 || currentState === PipelineState.FIRST_AUDIO || currentState === PipelineState.RIME_GENERATING) {
       // Audio is actively playing or ready -> interrupt it right now!
       triggerInterruption({
         simulated: true,
@@ -1195,11 +1320,30 @@ document.addEventListener('DOMContentLoaded', () => {
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
+    recognition.onstart = () => {
+      isRecognitionActive = true;
+      recognitionResultCount = 0;
+      if (isListeningForCorrection) {
+        interruptionResultIndex = 0;
+      }
+      lastRecognitionEventType = 'onstart';
+      lastRecognitionTimestamp = Date.now();
+      recognitionStartedTurnId = activeTurnId;
+      console.log(`[FastLane Speech Event] onstart: activeTurnId=${activeTurnId}, isPlayingAudio=${isPlayingAudio}, isListeningForCorrection=${isListeningForCorrection}`);
+    };
+
     recognition.onresult = (event) => {
+      recognitionResultCount = event.results.length;
+
+      let startIndex = 0;
+      if (isListeningForCorrection) {
+        startIndex = Math.max(0, Math.min(interruptionResultIndex, event.results.length));
+      }
+
       let finalStr = '';
       let interimStr = '';
-      for (let i = 0; i < event.results.length; ++i) {
-        const chunk = event.results[i][0].transcript;
+      for (let i = startIndex; i < event.results.length; ++i) {
+        const chunk = event.results[i][0] ? event.results[i][0].transcript : '';
         if (event.results[i].isFinal) {
           finalStr += chunk + ' ';
         } else {
@@ -1207,32 +1351,71 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       const fullText = (finalStr + interimStr).trim();
-      if (fullText) {
-        recordedTranscript = fullText;
-        userTranscript.textContent = fullText;
-        userTranscript.classList.remove('placeholder');
+      lastRecognitionResultText = fullText;
+      lastRecognitionEventType = 'onresult';
+      lastRecognitionTimestamp = Date.now();
 
-        // If bot is playing and user speech is detected, trigger immediate interruption
-        if (isPlayingAudio && !isListeningForCorrection) {
-          console.log('[FastLane Speech] Speech detected during playback — triggering interruption');
-          triggerInterruption({ simulated: false });
-        }
+      console.log(`[FastLane Speech Event] onresult: text="${fullText}", isPlayingAudio=${isPlayingAudio}, isListeningForCorrection=${isListeningForCorrection}, activeTurnId=${activeTurnId}, startIndex=${startIndex}`);
 
-        // If in hands-free interruption capture mode, reset silence timeout to 1.1 seconds after speech
-        if (isListeningForCorrection) {
+      if (isListeningForCorrection) {
+        if (fullText) {
+          const displayStr = (correctionCommittedText + ' ' + fullText).trim();
+          recordedTranscript = displayStr;
+          userTranscript.textContent = displayStr;
+          userTranscript.classList.remove('placeholder');
+
+          // Reset silence timeout to 1800ms after user speech during correction
           clearTimeout(correctionSilenceTimer);
+          const thisSessionId = currentCorrectionSessionId;
           correctionSilenceTimer = setTimeout(() => {
-            finalizeInterruptionCapture();
-          }, 1100);
+            if (isListeningForCorrection && currentCorrectionSessionId === thisSessionId) {
+              finalizeInterruptionCapture(thisSessionId);
+            }
+          }, 1800);
+        }
+      } else if (isRecording) {
+        if (fullText) {
+          recordedTranscript = fullText;
+          userTranscript.textContent = fullText;
+          userTranscript.classList.remove('placeholder');
         }
       }
     };
 
     recognition.onerror = (err) => {
-      console.warn('[FastLane] Speech recognition error:', err.error);
+      lastRecognitionEventType = 'onerror';
+      lastRecognitionTimestamp = Date.now();
+      console.warn(`[FastLane Speech Event] onerror: error="${err.error}", isPlayingAudio=${isPlayingAudio}, activeTurnId=${activeTurnId}`);
       if (err.error === 'not-allowed' || err.error === 'service-not-allowed') {
         userTranscript.textContent = "Microphone access blocked. Please allow mic in browser settings or type below.";
         userTranscript.classList.remove('placeholder');
+      }
+    };
+
+    recognition.onend = () => {
+      isRecognitionActive = false;
+      recognitionResultCount = 0;
+      lastRecognitionEventType = 'onend';
+      lastRecognitionTimestamp = Date.now();
+      console.log(`[FastLane Speech Event] onend: isPlayingAudio=${isPlayingAudio}, isListeningForCorrection=${isListeningForCorrection}, activeTurnId=${activeTurnId}`);
+
+      if (pendingNormalRecordingTurnId !== null) {
+        const turn = pendingNormalRecordingTurnId;
+        setTimeout(() => {
+          finalizeNormalRecording(turn, false);
+        }, 120);
+        return;
+      }
+
+      if (isListeningForCorrection) {
+        if (recordedTranscript) {
+          correctionCommittedText = (correctionCommittedText + ' ' + recordedTranscript).trim();
+          recordedTranscript = '';
+        }
+        interruptionResultIndex = 0;
+        ensureRecognitionListening();
+      } else if (isPlayingAudio && !isRecording) {
+        ensureRecognitionListening();
       }
     };
   }
@@ -1245,10 +1428,15 @@ document.addEventListener('DOMContentLoaded', () => {
       clearTimeout(correctionMaxTimer);
       isListeningForCorrection = false;
     }
+    clearTimeout(normalRecordingSafetyTimer);
+    pendingNormalRecordingTurnId = null;
     isRecording = true;
     recordedTranscript = '';
+    correctionCommittedText = '';
+    interruptionResultIndex = 0;
     activeTurnId = ++turnCounter;
     initAudioContext().catch(() => {});
+    unlockPersistentAudio();
     stopAudioPlayback();
 
     transitionState(PipelineState.RECORDING);
@@ -1267,6 +1455,59 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 80);
       }
     }
+  }
+
+  function finalizeNormalRecording(turnId, isInterruptionTurn) {
+    if (pendingNormalRecordingTurnId !== turnId) return;
+    pendingNormalRecordingTurnId = null;
+    clearTimeout(normalRecordingSafetyTimer);
+
+    const orderText = (recordedTranscript || '').trim();
+    if (!orderText) {
+      if (isInterruptionTurn) {
+        userTranscript.textContent = "Didn't catch that.";
+        userTranscript.classList.remove('placeholder');
+        botTranscript.textContent = "I'm listening — please tap the mic or type your correction below.";
+        botTranscript.classList.remove('placeholder');
+        timerStatusChip.className = 'status-chip ready';
+        timerStatusChip.textContent = 'Ready';
+        return;
+      } else {
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+        if (liveTimer) liveTimer.innerHTML = '0.00<span class="donut-unit">s</span>';
+        if (donutMeter) donutMeter.style.strokeDashoffset = '427';
+
+        userTranscript.textContent = "(no speech detected)";
+        userTranscript.classList.remove('placeholder');
+        if (userTime) userTime.textContent = formatTimeNow();
+
+        const honestMessage = "I didn't catch that — please try again.";
+        botTranscript.textContent = honestMessage;
+        botTranscript.classList.remove('placeholder');
+        if (botTime) botTime.textContent = formatTimeNow();
+
+        timerStatusChip.className = 'status-chip ready';
+        timerStatusChip.textContent = 'Ready';
+        if (valStt) valStt.textContent = 'no speech';
+        if (flowStepStt) flowStepStt.className = 'flow-step';
+
+        // Speak honest message using existing Rime TTS pipeline without creating or modifying any order state
+        speakNotification(honestMessage);
+        return;
+      }
+    }
+
+    userTranscript.textContent = orderText;
+    userTranscript.classList.remove('placeholder');
+    if (userTime) userTime.textContent = formatTimeNow();
+
+    runTurn(orderText, false, isInterruptionTurn);
+    setTimeout(() => {
+      ensureRecognitionListening();
+    }, 350);
   }
 
   function stopRecording() {
@@ -1290,77 +1531,21 @@ document.addEventListener('DOMContentLoaded', () => {
     wasBotPlayingWhenRecorded = false;
     wasInterrupted = false;
 
-    let finalized = false;
-    function finalize() {
-      if (finalized) return;
-      finalized = true;
-      clearTimeout(safetyTimeout);
-
-      const orderText = (recordedTranscript || '').trim();
-      if (!orderText) {
-        if (isInterruptionTurn) {
-          userTranscript.textContent = "Didn't catch that.";
-          userTranscript.classList.remove('placeholder');
-          botTranscript.textContent = "I'm listening — please tap the mic or type your correction below.";
-          botTranscript.classList.remove('placeholder');
-          timerStatusChip.className = 'status-chip ready';
-          timerStatusChip.textContent = 'Ready';
-          return;
-        } else {
-          if (timerInterval) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-          }
-          if (liveTimer) liveTimer.innerHTML = '0.00<span class="donut-unit">s</span>';
-          if (donutMeter) donutMeter.style.strokeDashoffset = '427';
-
-          userTranscript.textContent = "(no speech detected)";
-          userTranscript.classList.remove('placeholder');
-          if (userTime) userTime.textContent = formatTimeNow();
-
-          const honestMessage = "I didn't catch that — please try again.";
-          botTranscript.textContent = honestMessage;
-          botTranscript.classList.remove('placeholder');
-          if (botTime) botTime.textContent = formatTimeNow();
-
-          timerStatusChip.className = 'status-chip ready';
-          timerStatusChip.textContent = 'Ready';
-          if (valStt) valStt.textContent = 'no speech';
-          if (flowStepStt) flowStepStt.className = 'flow-step';
-
-          // Speak honest message using existing Rime TTS pipeline without creating or modifying any order state
-          speakNotification(honestMessage);
-          return;
-        }
-      }
-
-      userTranscript.textContent = orderText;
-      userTranscript.classList.remove('placeholder');
-      if (userTime) userTime.textContent = formatTimeNow();
-
-      runTurn(orderText, false, isInterruptionTurn);
-      setTimeout(() => {
-        ensureRecognitionListening();
-      }, 350);
-    }
-
-    // Hook recognition.onend to finalize as soon as recognition engine flushes results
-    if (recognition) {
-      const origOnEnd = recognition.onend;
-      recognition.onend = () => {
-        if (typeof origOnEnd === 'function') origOnEnd();
-        setTimeout(finalize, 120);
-      };
-    }
+    const turnToFinalize = activeTurnId;
+    pendingNormalRecordingTurnId = turnToFinalize;
 
     const waitDelay = recordedTranscript.trim() ? 150 : 700;
-    const safetyTimeout = setTimeout(finalize, waitDelay);
+    clearTimeout(normalRecordingSafetyTimer);
+    normalRecordingSafetyTimer = setTimeout(() => {
+      finalizeNormalRecording(turnToFinalize, isInterruptionTurn);
+    }, waitDelay);
   }
 
   // ─── 7. Tap-to-Toggle Speech Input Handling ───
   let lastToggleTime = 0;
   function handleMicToggle(e) {
     initAudioContext().catch(() => {});
+    unlockPersistentAudio();
     if (e) {
       if (typeof e.preventDefault === 'function' && e.cancelable && e.type === 'touchend') {
         e.preventDefault();
@@ -1399,6 +1584,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── 8. Quick Chips & Manual Input (Both Views) ───
   quickChips.forEach(chip => {
     chip.addEventListener('click', () => {
+      unlockPersistentAudio();
       const order = chip.getAttribute('data-order');
       runTurn(order, true, false);
     });
@@ -1406,6 +1592,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function handleSendText(inputEl) {
     if (!inputEl) return;
+    unlockPersistentAudio();
     const text = inputEl.value.trim();
     if (!text) return;
     if (manualInput) manualInput.value = '';
@@ -1634,13 +1821,43 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    isPlayingAudio = true;
     const item = audioQueue.shift();
 
-    const audio = new Audio(`data:${item.format || 'audio/mpeg'};base64,${item.audioBase64}`);
+    // Guard: Drop stale audio chunk if it belongs to an older/interrupted turn
+    if (item.turnId && item.turnId !== activeTurnId) {
+      console.log(`[FastLane Audio] Dropping stale chunk from turn ${item.turnId} (active: ${activeTurnId})`);
+      playNextAudio();
+      return;
+    }
+
+    isPlayingAudio = true;
+
+    // Use persistent HTMLAudioElement to preserve mobile autoplay unlock
+    if (!persistentAudio) {
+      persistentAudio = new Audio();
+      persistentAudio.preload = 'auto';
+      persistentAudio.setAttribute('playsinline', 'true');
+      persistentAudio.setAttribute('webkit-playsinline', 'true');
+    }
+
+    const audio = persistentAudio;
     currentAudio = audio;
 
+    // Clear previous event listeners
+    audio.onplay = null;
+    audio.onended = null;
+    audio.onerror = null;
+
+    const itemTurnId = item.turnId || activeTurnId;
+    currentAudioTurnId = itemTurnId;
+    lastAudioChunkStartTime = Date.now();
+
     audio.onplay = () => {
+      if (activeTurnId !== itemTurnId) {
+        // Interrupted before or as audio started: halt immediately
+        try { audio.pause(); } catch (_) {}
+        return;
+      }
       audioPlaybackStartTime = Date.now();
       if (item.isFirst && !item.isNotification) {
         transitionState(PipelineState.FIRST_AUDIO, { audioStartedPlaying: true });
@@ -1655,6 +1872,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ensureRecognitionListening();
         startVadMonitoring();
       }
+      console.log(`[FastLane Audio] Audio playing (turn: ${itemTurnId}, queueLeft: ${audioQueue.length}, isFirst: ${!!item.isFirst})`);
     };
 
     audio.onended = () => {
@@ -1667,26 +1885,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     audio.onerror = (err) => {
       console.error('[FastLane] Audio playback error:', err);
-      playNextAudio();
-    };
-
-    audio.play().catch(e => {
-      if (e.name === 'AbortError' || !isPlayingAudio) {
-        // Interrupted or paused intentionally: do not restart audio or VAD!
-        return;
-      }
-      console.warn('[FastLane] Audio autoplay prevented or delayed:', e);
-      if (item.isFirst && !item.isNotification) {
-        transitionState(PipelineState.FIRST_AUDIO, { audioStartedPlaying: true });
-      }
-      if (!item.isNotification && isPlayingAudio) {
-        ensureRecognitionListening();
-        startVadMonitoring();
-      }
       if (isPlayingAudio) {
         playNextAudio();
       }
-    });
+    };
+
+    // Assign source to persistent element
+    audio.src = `data:${item.format || 'audio/mpeg'};base64,${item.audioBase64}`;
+    audio.currentTime = 0;
+
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        console.log(`[FastLane Audio] audio.play() succeeded (turn: ${itemTurnId})`);
+      }).catch(e => {
+        if (e.name === 'AbortError' || !isPlayingAudio) {
+          // Interrupted or paused intentionally: do not restart audio or VAD!
+          console.log(`[FastLane Audio] Playback aborted/paused intentionally (turn: ${itemTurnId})`);
+          return;
+        }
+        console.warn(`[FastLane Audio] audio.play() rejected (${e.name}: ${e.message}, turn: ${itemTurnId})`);
+
+        if (e.name === 'NotAllowedError') {
+          // Mobile browser autoplay policy blocked hands-free playback:
+          // Do NOT recursively drain the queue!
+          isPlayingAudio = false;
+          stopVadMonitoring();
+          if (soundwave) soundwave.style.display = 'none';
+          return;
+        }
+
+        if (item.isFirst && !item.isNotification) {
+          transitionState(PipelineState.FIRST_AUDIO, { audioStartedPlaying: true });
+        }
+        if (!item.isNotification && isPlayingAudio) {
+          ensureRecognitionListening();
+          startVadMonitoring();
+        }
+        if (isPlayingAudio) {
+          playNextAudio();
+        }
+      });
+    }
   }
 
   // ─── 10. Server SSE Pipeline Invocation ───
@@ -1832,6 +2072,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             transitionState(PipelineState.FIRST_AUDIO, { rimeAudioReceived: true });
           }
+          data.turnId = thisTurnId;
           enqueueAudio(data);
         } else if (name === 'done') {
           transitionState(PipelineState.COMPLETE);
@@ -2240,4 +2481,19 @@ document.addEventListener('DOMContentLoaded', () => {
   if (donutMeter) donutMeter.style.strokeDashoffset = '140';
   setMode('streamed');
   switchView('user');
+
+  // Diagnostic and test harness interface for automated verification suites
+  window.__fastlane = {
+    triggerInterruption,
+    startInterruptionSpeechCapture,
+    finalizeInterruptionCapture,
+    ensureRecognitionListening,
+    getRecognition: () => recognition,
+    getPersistentAudio: () => persistentAudio,
+    getOrderState: () => structuredOrderState,
+    resetOrder: () => {
+      structuredOrderState = { items: [], confirmed: false };
+      renderOrderState(structuredOrderState);
+    }
+  };
 });
