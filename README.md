@@ -27,9 +27,8 @@ Waiting for the full LLM response before triggering speech synthesis can add sev
 ---
 
 ## 3. Why Voice is Essential
-In a physical drive-thru lane, voice is the primary interface. Drivers must keep their hands on the wheel and eyes on the lane, making visual screens secondary. If a voice system takes multiple seconds to respond, drivers assume the system didn't hear them and repeat themselves, causing collision errors, broken order states, and delayed queue times. 
-Reducing response latency toward natural conversational pauses is important for maintaining a responsive drive-thru interaction.
----
+
+In a physical drive-thru lane, voice is the primary interface. Drivers must keep their hands on the wheel and eyes on the lane, making visual screens secondary. If a voice system takes multiple seconds to respond, drivers assume the system didn't hear them and repeat themselves, causing collision errors, broken order states, and delayed queue times. Reducing response latency toward natural conversational pauses is important for maintaining a responsive drive-thru interaction.
 
 ## 4. Architecture
 FastLane processes customer orders through an end-to-end voice pipeline:
