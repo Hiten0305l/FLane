@@ -33,37 +33,6 @@ In a physical drive-thru lane, voice is the primary interface. Drivers must keep
 ## 4. Architecture
 FastLane processes customer orders through an end-to-end voice pipeline:
 ![FastLane Architecture](./architecture.jpeg)
-```
-[Customer Speaks / Enters Text]
-              │
-              ▼
-[Speech-to-Text (STT)]
-  • Browser Web Speech API (webkitSpeechRecognition / SpeechRecognition)
-  • Manual text input fallback
-              │
-              ▼ (POST /api/pipeline via Server-Sent Events)
-[FastLane Orchestration Engine (server.js & services/pipelineService.js)]
-              │
-      ┌───────┴────────────────────────────────────────┐
-      ▼                                                ▼
-[Streamed Pipeline (Fast Mode)]              [Naive Pipeline (Standard Mode)]
-      │                                                │
-Gemini token stream begins                   Gemini generates 100% full reply
-(streamGenerateContent?alt=sse)              (generateContent)
-      │                                                │
-SentenceParser detects 1st sentence          Full text generation completes
-boundary ('.', '!', '?')                               │
-      │                                      Dispatch entire text to Rime TTS API
-Dispatch 1st sentence to Rime TTS API                  │
-(POST https://users.rime.ai/v1/rime-tts)      Full audio buffer received
-      │                                                │
-1st sentence audio received (MP3)            Browser begins audible playback
-      │
-Browser begins AUDIBLE playback (t₁)
-      │
-Subsequent sentences synthesized & queued
-concurrently while user listens
-```
 
 ---
 
