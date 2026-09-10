@@ -170,10 +170,7 @@ Rime is the primary voice synthesis engine across all spoken flows in FastLane:
 In the live browser UI:
 
 $$
-\text{TTFA} =
-t_{\text{first audible playback}}
--
-t_{\text{user release}}
+\text{TTFA} = t_{\text{first audible playback}} - t_{\text{user release}}
 $$
 
 - **t₀ — User Release:** The instant the user submits the order turn.
@@ -211,29 +208,33 @@ After starting or restarting the server, the very first request incurs connectio
 
 
 ---
-
 ## 14. Reproduction & Benchmark Instructions
+
 To reproduce the acceptance benchmark:
+
 ```bash
 npm run benchmark
 ```
 
-```markdown
 ### What the benchmark measures
 
 The benchmark runs 15 Naive and 15 Streamed trials against the live Gemini and Rime services.
 
-The reported latency is **the time from the benchmark start timestamp to receipt of the first synthesized Rime audio event**. It is **not a physical speaker measurement**.
+The reported latency is **the time from the benchmark start timestamp to receipt of the first synthesized Rime audio**. It is **not a physical speaker measurement**.
 
 The first run of each pipeline is labeled **Cold**; subsequent runs are labeled **Warm**.
+
+Results are reported in `benchmark_results.json`.
 
 ---
 
 ## 15. Exact Rime Configuration
+
 The shipped application strictly uses:
-- **Model ID**: `coda`
-- **Speaker**: `astra`
-- **Language**: `eng` / `en`
-- **Endpoint**: `https://users.rime.ai/v1/rime-tts`
-- **Audio Format**: `audio/mpeg` (24 kHz)
-- **Transport**: HTTP POST with JSON body and Bearer token
+
+- **Model ID:** `coda`
+- **Speaker:** `astra`
+- **Language:** `eng` / `en`
+- **Endpoint:** `https://users.rime.ai/v1/rime-tts`
+- **Audio Format:** `audio/mpeg` (24 kHz)
+- **Transport:** HTTP POST with JSON body and Bearer token
