@@ -32,7 +32,7 @@ In a physical drive-thru lane, voice is the primary interface. Drivers must keep
 
 ## 4. Architecture
 FastLane processes customer orders through an end-to-end voice pipeline:
-
+![FastLane Architecture](./architecture.jpeg)
 ```
 [Customer Speaks / Enters Text]
               │
